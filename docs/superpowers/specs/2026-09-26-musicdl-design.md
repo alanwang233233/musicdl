@@ -196,6 +196,7 @@ class DownloadService:
         level=None,
         output_dir: Path | None = None,
         skip_existing: bool = True,
+        skip_failed: bool = False,
     ) -> list[Path]: ...
 ```
 
@@ -203,9 +204,12 @@ class DownloadService:
 - `progress_callback`：每次块写入后回调 `(已下载字节数, 总字节数)`，`total` 来自 `SongUrl.size`，未知时传 `-1`。
 - `naming_template` 支持占位符：`{singer}`、`{title}`、`{album}`、`{id}`、`{track_number}`、`{playlist}`；非法文件名字符替换为 `_`，自动处理路径分隔（占位符中可包含 `/` 建子目录）。
 - 扩展名固定 `.mp3`（API 返回 MP3 直链）。
-- 下载失败（网络/HTTP 错误）→ `DownloadError`，**始终向上抛出，不捕获、不静默跳过**。
+- 下载失败（网络/HTTP 错误）→ `DownloadError`，默认**向上抛出，不捕获、不静默跳过**。
   - `download_song`：失败直接抛 `DownloadError`。
-  - `download_playlist`：任一曲目失败立即抛 `DownloadError`（携带 `song_id` 与已完成列表等上下文），由调用方决定是否继续。库本身不吞异常。
+  - `download_playlist`：由 `skip_failed` 参数控制失败行为：
+    - `skip_failed=False`（默认）：任一曲目失败立即抛 `DownloadError`（携带 `song_id` 与已完成列表等上下文），由调用方决定是否继续；
+    - `skip_failed=True`：调用方显式选择跳过失败曲目，继续下载后续曲目，最终返回成功路径列表。
+  - 库本身不吞异常；`skip_failed=True` 是调用方的显式声明，非静默行为。
 
 ## 7. 异常体系（`exceptions/errors.py`）
 
@@ -240,7 +244,7 @@ MusicDLException(Exception)          # 基类
   - `client`：timestamp/ip 注入、headers、非 200 → APIError、网络异常 → NetworkError、重试逻辑
   - `playlist service`：单页、自动分页终止条件（空页 / songCount 上限 / 短页）
   - `song service`：info/url 正常路径 + 错误路径
-  - `download`：命名模板渲染、非法字符替换、进度回调调用、download_playlist 跳过已存在文件（显式 `skip_existing` 行为）、单曲失败抛 `DownloadError`（含上下文）
+  - `download`：命名模板渲染、非法字符替换、进度回调调用、download_playlist 跳过已存在文件（显式 `skip_existing` 行为）、默认失败抛 `DownloadError`（含上下文）、`skip_failed=True` 时跳过失败曲目继续
 - 运行方式：`pytest`（README 中记录）。
 
 ## 11. 文档要求
