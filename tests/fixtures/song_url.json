@@ -1,0 +1,15 @@
+{
+  "code": 200,
+  "data": {
+    "id": 1432544572,
+    "url": "https://m8.music.126.net/20260912172744/audio.mp3?vuutv=signature",
+    "br": 128000,
+    "level": "standard",
+    "size": 3209133,
+    "md5": "9a2ab3a746ede1201c55d8c9a91612eb",
+    "channelLayout": null,
+    "effects": null,
+    "cookie": {"id": "netease-2", "label": "backup #2", "index": 1},
+    "time": "2026/09/12 17:27:44"
+  }
+}

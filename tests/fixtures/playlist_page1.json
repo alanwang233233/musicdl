@@ -1,0 +1,37 @@
+{
+  "code": 200,
+  "data": {
+    "id": 18120707017,
+    "name": "正太",
+    "coverImage": "https://p1.music.126.net/cover.jpg",
+    "songCount": 3,
+    "playCount": 38,
+    "description": null,
+    "tags": ["流行"],
+    "creator": {"uid": 1473332243, "avatar": "https://p1.music.126.net/avatar.jpg", "name": "Error404-Official"},
+    "songs": [
+      {
+        "id": 1432544572,
+        "name": "想想念念",
+        "free": false,
+        "album": "想想念念",
+        "singer": "皮卡丘多多(尹子桐)",
+        "picimg": "https://p3.music.126.net/cover.jpg",
+        "duration": "3:21",
+        "copyright": 1,
+        "time": "2026/09/12 17:25:27"
+      },
+      {
+        "id": 1432544573,
+        "name": "测试歌曲2",
+        "free": true,
+        "album": "专辑2",
+        "singer": "歌手A/歌手B",
+        "picimg": "https://example.com/2.jpg",
+        "duration": "4:00",
+        "copyright": 0,
+        "time": "2026/09/12 17:25:30"
+      }
+    ]
+  }
+}
