@@ -23,6 +23,7 @@
 | IP 获取 | 自动获取公网 IP，可手动覆盖 |
 | 分页 | 自动分页生成器 |
 | 下载 | 独立 DownloadService，**单线程**，**无断点续传**，**无 MD5 校验**，保留进度回调与命名模板 |
+| 错误处理原则 | **库不吞异常**：任何失败一律向上抛出自定义异常，不静默跳过、不隐藏报错；异常处理由调用方负责 |
 | 语言 | 代码英文标识符；docstring / 文档使用英文或中英混合，README 中文 |
 
 ### 接口清单（来自用户提供文档）
@@ -202,9 +203,9 @@ class DownloadService:
 - `progress_callback`：每次块写入后回调 `(已下载字节数, 总字节数)`，`total` 来自 `SongUrl.size`，未知时传 `-1`。
 - `naming_template` 支持占位符：`{singer}`、`{title}`、`{album}`、`{id}`、`{track_number}`、`{playlist}`；非法文件名字符替换为 `_`，自动处理路径分隔（占位符中可包含 `/` 建子目录）。
 - 扩展名固定 `.mp3`（API 返回 MP3 直链）。
-- 下载失败（网络/HTTP 错误）→ `DownloadError`。
+- 下载失败（网络/HTTP 错误）→ `DownloadError`，**始终向上抛出，不捕获、不静默跳过**。
   - `download_song`：失败直接抛 `DownloadError`。
-  - `download_playlist`：单曲失败时记录日志并跳过，继续下载后续曲目，返回成功路径列表。
+  - `download_playlist`：任一曲目失败立即抛 `DownloadError`（携带 `song_id` 与已完成列表等上下文），由调用方决定是否继续。库本身不吞异常。
 
 ## 7. 异常体系（`exceptions/errors.py`）
 
@@ -215,8 +216,10 @@ MusicDLException(Exception)          # 基类
 ├── APIError                         # code != 200；携带 code、message、payload
 ├── NetworkError                     # 传输层失败；携带原始异常
 ├── ValidationError                  # 响应结构不符合预期（Pydantic）
-└── DownloadError                    # 下载过程失败
+└── DownloadError                    # 下载过程失败；携带 song_id、output_path、已完成路径列表（如可用）及原始异常
 ```
+
+说明：client 层仅做异常**类型转换**（如 `requests` 异常 → `NetworkError`、非 200 → `APIError`），通过 `raise ... from e` 保留原始异常链；服务层不捕获、不吞掉下层异常，一律向调用方传播。
 
 ## 8. 公共 API（`__init__.py`）
 
@@ -237,7 +240,7 @@ MusicDLException(Exception)          # 基类
   - `client`：timestamp/ip 注入、headers、非 200 → APIError、网络异常 → NetworkError、重试逻辑
   - `playlist service`：单页、自动分页终止条件（空页 / songCount 上限 / 短页）
   - `song service`：info/url 正常路径 + 错误路径
-  - `download`：命名模板渲染、非法字符替换、进度回调调用、download_playlist 跳过已存在、失败跳过
+  - `download`：命名模板渲染、非法字符替换、进度回调调用、download_playlist 跳过已存在文件（显式 `skip_existing` 行为）、单曲失败抛 `DownloadError`（含上下文）
 - 运行方式：`pytest`（README 中记录）。
 
 ## 11. 文档要求
