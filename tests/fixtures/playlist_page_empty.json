@@ -1,0 +1,14 @@
+{
+  "code": 200,
+  "data": {
+    "id": 18120707017,
+    "name": "正太",
+    "coverImage": "https://p1.music.126.net/cover.jpg",
+    "songCount": 3,
+    "playCount": 38,
+    "description": null,
+    "tags": ["流行"],
+    "creator": {"uid": 1473332243, "avatar": "https://p1.music.126.net/avatar.jpg", "name": "Error404-Official"},
+    "songs": []
+  }
+}
