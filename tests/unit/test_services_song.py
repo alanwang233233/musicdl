@@ -67,3 +67,10 @@ def test_api_error_propagates(service: SongService) -> None:
     responses.add(responses.POST, INFO_URL, json={"code": 404, "data": None}, status=200)
     with pytest.raises(APIError):
         service.get_info(1)
+
+
+@responses.activate
+def test_get_url_api_error_propagates(service: SongService) -> None:
+    responses.add(responses.POST, SONG_URL, json={"code": 404, "data": None}, status=200)
+    with pytest.raises(APIError):
+        service.get_url(1)

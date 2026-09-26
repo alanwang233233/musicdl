@@ -38,7 +38,7 @@ class SongService:
 
         Args:
             song_id: Song ID.
-            level: Quality level; ``None`` uses ``config.default_level``.
+            level: Quality level; ``None`` uses ``client.config.default_level``.
                 Enums are sent as their value, arbitrary strings pass through.
 
         Returns:
