@@ -92,16 +92,19 @@ class PlaylistService:
         size = page_size if page_size is not None else self.page_size
         offset = 0
         first: Playlist | None = None
+        expected: int | None = None
         songs: list[PlaylistTrack] = []
         while True:
             page = self.get_tracks(playlist_id, limit=size, offset=offset)
             if first is None:
                 first = page
+                expected = page.song_count
             if not page.songs:
                 break
             songs.extend(page.songs)
             offset += len(page.songs)
-            if len(songs) >= page.song_count or len(page.songs) < size:
+            assert expected is not None
+            if len(songs) >= expected or len(page.songs) < size:
                 break
         assert first is not None
         return first.model_copy(update={"songs": songs})
