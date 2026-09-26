@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from musicdl.models.enums import CopyrightType
 
@@ -95,7 +95,7 @@ class SongUrl(BaseModel):
     level: str
     size: int
     md5: str
-    channel_layout: str | None = None
+    channel_layout: str | None = Field(default=None, alias="channelLayout")
     effects: Any = None
     cookie: CookieInfo
     time: datetime | str
