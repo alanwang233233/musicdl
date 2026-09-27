@@ -76,11 +76,11 @@ class SongUrl(BaseModel):
 
     Attributes:
         id: Song ID.
-        url: Signed MP3 direct link (time-limited).
+        url: Signed MP3 direct link (time-limited). May be None if unavailable.
         br: Bitrate in bps.
-        level: Quality level actually returned.
+        level: Quality level actually returned. May be None if unavailable.
         size: File size in bytes.
-        md5: Audio file MD5.
+        md5: Audio file MD5. May be None if unavailable.
         channel_layout: Channel layout, if reported.
         effects: Effects metadata, if reported.
         cookie: Account info used for streaming.
@@ -90,11 +90,11 @@ class SongUrl(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: int
-    url: str
+    url: str | None = None
     br: int
-    level: str
+    level: str | None = None
     size: int
-    md5: str
+    md5: str | None = None
     channel_layout: str | None = Field(default=None, alias="channelLayout")
     effects: Any = None
     cookie: CookieInfo

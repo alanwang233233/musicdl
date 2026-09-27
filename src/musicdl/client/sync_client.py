@@ -121,6 +121,18 @@ class SyncMusicClient:
             except requests.RequestException as exc:
                 last_error = exc
                 continue
+            if response.status_code == 429:
+                # Rate limited: parse retryAfter from response and wait
+                retry_after = self.config.retry_backoff
+                try:
+                    rate_data = response.json()
+                    if isinstance(rate_data, dict) and "retryAfter" in rate_data:
+                        retry_after = max(rate_data["retryAfter"], 0)
+                except ValueError:
+                    pass
+                print(f"  ⏳ 限流 (429)，等待 {retry_after}s 后重试...", end="\r")
+                time.sleep(retry_after)
+                continue
             if response.status_code >= 500:
                 last_error = NetworkError(f"HTTP {response.status_code} from {endpoint}")
                 continue
@@ -133,6 +145,14 @@ class SyncMusicClient:
             if not isinstance(data, dict):
                 raise ValidationError(f"unexpected response type from {endpoint}: {type(data).__name__}")
             code = data.get("code")
+            if code == 429:
+                # Business-level rate limit: parse retryAfter from response
+                retry_after = self.config.retry_backoff
+                if isinstance(data, dict) and "data" in data and isinstance(data["data"], dict):
+                    retry_after = max(data["data"].get("retryAfter", retry_after), 0)
+                print(f"  ⏳ 业务限流 (code 429)，等待 {retry_after}s 后重试...", end="\r")
+                time.sleep(retry_after)
+                continue
             if code != 200:
                 message = data.get("message") or data.get("msg") or f"API returned code {code!r}"
                 raise APIError(
