@@ -1,15 +1,19 @@
-"""Typer CLI application entry point."""
+"""musicdl-cli — Typer application entry point."""
 
 import typer
 
+from musicdl_cli.commands.download import app as download_app
+
 app = typer.Typer(
     name="musicdl",
-    help="MusicDL CLI - Download music from self-hosted NextMusic API",
+    help="musicdl — NextMusic API 命令行工具",
     no_args_is_help=True,
+    add_completion=False,
 )
+
+app.add_typer(download_app, name="download")
 
 
 @app.callback()
 def main() -> None:
-    """MusicDL CLI - Download music from self-hosted NextMusic API."""
-    pass
+    """musicdl CLI — 下载歌单和单曲。"""
