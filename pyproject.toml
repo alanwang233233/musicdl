@@ -19,9 +19,16 @@ dev = [
     "pytest-cov>=4.0",
     "responses>=0.24",
 ]
+cli = [
+    "typer>=0.9",
+    "rich>=13.0",
+]
+
+[project.scripts]
+musicdl = "musicdl_cli.main:app"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/musicdl"]
+packages = ["src/musicdl", "src/musicdl_cli"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
