@@ -15,12 +15,10 @@ from musicdl_cli.utils.retry import download_with_retry
 app = typer.Typer(help="下载歌单或单曲", no_args_is_help=True)
 
 
-def _create_download_service(
+def _create_client_and_downloader(
     ip: Optional[str],
     output_dir: Path,
     quality: str,
-    max_retries: int,
-    retry_wait: float,
 ) -> tuple[SyncMusicClient, DownloadService]:
     """Create SyncMusicClient and DownloadService from CLI options."""
     config = MusicDLConfig(ip=ip, default_level=quality)
@@ -48,7 +46,7 @@ def download_song(
     """下载单首歌曲。"""
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    client, downloader = _create_download_service(ip, output_dir, quality, max_retries, retry_wait)
+    client, downloader = _create_client_and_downloader(ip, output_dir, quality)
 
     def _do_download() -> Path:
         with client:

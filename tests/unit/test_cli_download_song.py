@@ -32,7 +32,7 @@ def test_download_song_invokes_download_service(tmp_path: Path):
     mock_downloader = Mock()
     mock_downloader.download_song.return_value = tmp_path / "test.mp3"
 
-    with patch("musicdl_cli.commands.download._create_download_service") as mock_factory:
+    with patch("musicdl_cli.commands.download._create_client_and_downloader") as mock_factory:
         mock_factory.return_value = (mock_client, mock_downloader)
         result = runner.invoke(app, ["download", "song", "12345", "--output-dir", str(tmp_path)])
 
