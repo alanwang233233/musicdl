@@ -5,6 +5,8 @@ from __future__ import annotations
 import time
 from typing import Any, Callable, TypeVar
 
+import requests
+
 from musicdl.exceptions import APIError, DownloadError, NetworkError
 
 T = TypeVar("T")
@@ -53,13 +55,36 @@ def download_with_retry(
 
 
 def _is_retryable(exc: BaseException) -> bool:
-    """Check if an exception is retryable (429, 404, or network error)."""
+    """Check if an exception is retryable (429, 404, or network error).
+
+    Matches the logic in download_playlist_249180720.py:
+    - APIError with code 429 or 404
+    - APIError with payload.code == 429
+    - requests.HTTPError with response.status_code 429 or 404
+    - NetworkError
+    - DownloadError wrapping any of the above
+    """
     if isinstance(exc, NetworkError):
         return True
+
     if isinstance(exc, APIError):
-        return exc.code in _RETRYABLE_API_CODES
+        if exc.code in _RETRYABLE_API_CODES:
+            return True
+        if hasattr(exc, "payload") and isinstance(exc.payload, dict):
+            if exc.payload.get("code") == 429:
+                return True
+        return False
+
+    if isinstance(exc, requests.HTTPError):
+        if exc.response is not None:
+            status = exc.response.status_code
+            if status in _RETRYABLE_API_CODES:
+                return True
+        return False
+
     if isinstance(exc, DownloadError):
         return _is_retryable(exc.__cause__) if exc.__cause__ else False
+
     return False
 
 
@@ -70,6 +95,22 @@ def _classify_error(exc: BaseException) -> str:
             return "限流(429)"
         if exc.code == 404:
             return "未找到(404)"
+        if hasattr(exc, "payload") and isinstance(exc.payload, dict):
+            if exc.payload.get("code") == 429:
+                return "限流(429)"
+
+    if isinstance(exc, requests.HTTPError):
+        if exc.response is not None:
+            status = exc.response.status_code
+            if status == 429:
+                return "限流(429)"
+            if status == 404:
+                return "未找到(404)"
+
     if isinstance(exc, DownloadError) and exc.__cause__:
         return _classify_error(exc.__cause__)
+
+    if isinstance(exc, NetworkError):
+        return "网络错误"
+
     return "网络错误"
