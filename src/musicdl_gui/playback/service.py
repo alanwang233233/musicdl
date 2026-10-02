@@ -121,6 +121,15 @@ class PlaybackService:
                 self._on_track_change(self._current_item)
         if self._current_item is None:
             return
+
+        # Resume from pause if audio exists
+        if self._state == PlaybackState.PAUSED and self._audio:
+            self._state = PlaybackState.PLAYING
+            if self._on_state_change:
+                self._on_state_change(self._state)
+            self._page.run_task(self._audio.resume)
+            return
+
         self._state = PlaybackState.PLAYING
         if self._on_state_change:
             self._on_state_change(self._state)
@@ -198,7 +207,15 @@ class PlaybackService:
 
     async def _playback_loop(self) -> None:
         """Main playback loop - downloads to temp and plays via flet-audio."""
-        while self._state == PlaybackState.PLAYING and self._current_item:
+        while self._current_item:
+            # Wait if paused
+            while self._state == PlaybackState.PAUSED:
+                await asyncio.sleep(0.1)
+
+            # Exit if stopped or ended
+            if self._state in (PlaybackState.STOPPED, PlaybackState.ENDED):
+                break
+
             item = self._current_item
             try:
                 self._state = PlaybackState.BUFFERING
@@ -230,6 +247,9 @@ class PlaybackService:
                     pass
 
                 # Handle next track based on mode
+                if self._state in (PlaybackState.STOPPED, PlaybackState.ENDED):
+                    break
+
                 if self._mode == PlaybackMode.SINGLE_LOOP:
                     continue  # Replay current
                 elif self._mode == PlaybackMode.RANDOM:
@@ -312,7 +332,13 @@ class PlaybackService:
             # Play
             await self._audio.play()
             # Wait for playback to complete or be interrupted
-            while self._state == PlaybackState.PLAYING and self._audio:
+            while self._audio and self._state != PlaybackState.STOPPED:
+                # Wait if paused
+                while self._state == PlaybackState.PAUSED and self._audio:
+                    await asyncio.sleep(0.1)
+                # Exit if stopped or ended
+                if self._state in (PlaybackState.STOPPED, PlaybackState.ENDED):
+                    break
                 await asyncio.sleep(0.5)
         except (RuntimeError, ValueError, OSError) as e:
             if self._on_error:
