@@ -51,7 +51,7 @@ class QueueRow(ft.Container):
                 weight=ft.FontWeight.W_500,
                 color=ft.Colors.WHITE,
             ),
-            padding=ft.padding.symmetric(horizontal=8, vertical=2),
+            padding=ft.Padding(left=8, top=2, right=8, bottom=2),
             border_radius=12,
             bgcolor=status_color,
         )
