@@ -235,7 +235,7 @@ class PlaybackService:
                 elif self._mode == PlaybackMode.RANDOM:
                     self._current_index = random.randrange(len(self._playlist))
                 else:
-                    self._current_index = (self._current_index + 1) % len(self._playlist)
+                    self._current_index += 1
 
                 if self._current_index >= len(self._playlist):
                     self._state = PlaybackState.ENDED
@@ -256,7 +256,7 @@ class PlaybackService:
                 if self._mode == PlaybackMode.RANDOM:
                     self._current_index = random.randrange(len(self._playlist))
                 else:
-                    self._current_index = (self._current_index + 1) % len(self._playlist)
+                    self._current_index += 1
                 if self._current_index >= len(self._playlist):
                     self._state = PlaybackState.ENDED
                     if self._on_state_change:
