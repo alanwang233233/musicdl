@@ -1,7 +1,7 @@
 """Settings tab."""
 
+
 import flet as ft
-from pathlib import Path
 
 from musicdl_gui.config import ConfigManager
 
@@ -60,11 +60,6 @@ class SettingsTab(ft.Column):
             icon=ft.Icons.RESTORE,
             on_click=self._on_reset,
         )
-        self.test_button = ft.OutlinedButton(
-            content=ft.Text("Test Connection"),
-            icon=ft.Icons.CHECK,
-            on_click=self._on_test,
-        )
 
         self.controls = [
             ft.Text("API Settings", size=18, weight=ft.FontWeight.BOLD),
@@ -81,7 +76,7 @@ class SettingsTab(ft.Column):
             ft.Divider(),
             ft.Row(
                 spacing=8,
-                controls=[self.save_button, self.reset_button, self.test_button],
+                controls=[self.save_button, self.reset_button],
             ),
         ]
 
@@ -90,7 +85,7 @@ class SettingsTab(ft.Column):
         self.page.overlay.append(snack)
         self.page.update()
 
-    def _on_save(self, e):
+    async def _on_save(self, e):
         config = {
             "base_url": self.base_url_input.value,
             "ip": self.ip_input.value or None,
@@ -101,14 +96,11 @@ class SettingsTab(ft.Column):
         }
         errors = self._config_mgr.validate(config)
         if errors:
-            self._show_snack(f"Validation errors: {', '.join(errors)}")
+            await self._show_snack(f"Validation errors: {', '.join(errors)}")
             return
         self._config_mgr.save(config)
-        self._show_snack("Settings saved")
+        await self._show_snack("Settings saved")
 
-    def _on_reset(self, e):
+    async def _on_reset(self, e):
         self._config_mgr.save(self._config_mgr.DEFAULT_CONFIG.copy())
-        self._show_snack("Settings reset to defaults")
-
-    async def _on_test(self, e):
-        await self._show_snack("Testing connection...")
+        await self._show_snack("Settings reset to defaults")

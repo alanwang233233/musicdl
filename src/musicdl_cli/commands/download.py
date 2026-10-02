@@ -2,18 +2,26 @@
 
 from __future__ import annotations
 
-import time
 import urllib.parse
 from pathlib import Path
-from typing import Optional
 
-import requests
 import typer
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+)
 
-from musicdl import DownloadService, MusicDLConfig, PlaylistService, SongService, SyncMusicClient
-from musicdl.exceptions import APIError, DownloadError, NetworkError
-from musicdl.models import Playlist
+from musicdl import (
+    DownloadService,
+    MusicDLConfig,
+    PlaylistService,
+    SongService,
+    SyncMusicClient,
+)
+from musicdl.exceptions import APIError, DownloadError
 from musicdl_cli.ui.output import console, print_playlist_info, print_track_list
 from musicdl_cli.utils.retry import download_with_retry
 
@@ -21,7 +29,7 @@ app = typer.Typer(help="下载歌单或单曲", no_args_is_help=True)
 
 
 def _create_client_and_downloader(
-    ip: Optional[str],
+    ip: str | None,
     output_dir: Path,
     quality: str,
 ) -> tuple[SyncMusicClient, DownloadService]:
@@ -69,7 +77,7 @@ def download_song(
     song_id: str = typer.Argument(..., help="歌曲 ID"),
     output_dir: Path = typer.Option(Path("."), "--output-dir", "-o", help="输出目录"),
     quality: str = typer.Option("standard", "--quality", "-q", help="音质: standard/hires/lossless"),
-    ip: Optional[str] = typer.Option(None, "--ip", help="客户端 IP（默认自动获取）"),
+    ip: str | None = typer.Option(None, "--ip", help="客户端 IP（默认自动获取）"),
     max_retries: int = typer.Option(10, "--max-retries", help="最大重试次数"),
     retry_wait: float = typer.Option(10.0, "--retry-wait", help="重试等待秒数"),
 ) -> None:
@@ -113,7 +121,7 @@ def download_playlist(
     playlist_id: str = typer.Argument(..., help="歌单 ID"),
     output_dir: Path = typer.Option(Path("."), "--output-dir", "-o", help="输出目录"),
     quality: str = typer.Option("standard", "--quality", "-q", help="音质: standard/hires/lossless"),
-    ip: Optional[str] = typer.Option(None, "--ip", help="客户端 IP（默认自动获取）"),
+    ip: str | None = typer.Option(None, "--ip", help="客户端 IP（默认自动获取）"),
     max_retries: int = typer.Option(10, "--max-retries", help="最大重试次数"),
     retry_wait: float = typer.Option(10.0, "--retry-wait", help="重试等待秒数"),
     skip_existing: bool = typer.Option(True, "--skip-existing/--no-skip-existing", help="跳过已存在的文件"),
@@ -210,11 +218,11 @@ def download_playlist(
                     for p in paths:
                         console.print(f"  ✓ {p.name}")
                     if skipped:
-                        console.print(f"\n跳过列表:")
+                        console.print("\n跳过列表:")
                         for p in skipped:
                             console.print(f"  ⊘ {p.name}")
                     if failed:
-                        console.print(f"\n失败列表:")
+                        console.print("\n失败列表:")
                         for track_err, err in failed:
                             console.print(f"  ✗ {track_err.singer} - {track_err.name}: {err}")
                     raise typer.Exit(code=1)
@@ -224,11 +232,11 @@ def download_playlist(
         for p in paths:
             console.print(f"  ✓ {p.name}")
         if skipped:
-            console.print(f"\n跳过列表:")
+            console.print("\n跳过列表:")
             for p in skipped:
                 console.print(f"  ⊘ {p.name}")
         if failed:
-            console.print(f"\n失败列表:")
+            console.print("\n失败列表:")
             for track_err, err in failed:
                 console.print(f"  ✗ {track_err.singer} - {track_err.name}: {err}")
 

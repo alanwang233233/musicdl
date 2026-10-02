@@ -59,6 +59,21 @@ class DownloadQueue:
             self._items.append(item)
         self._save_queue()
 
+    def add_playlist_single_track(self, playlist: Playlist, track, quality: str, output_dir: Path) -> None:
+        """Add a single track from a playlist to the queue."""
+        singer = _sanitize_filename(track.singer)
+        title = _sanitize_filename(track.name)
+        item = QueueItem(
+            song_id=track.id,
+            title=track.name,
+            singer=track.singer,
+            playlist=playlist.name,
+            quality=quality,
+            output_path=output_dir / f"{singer} - {title}.mp3",
+        )
+        self._items.append(item)
+        self._save_queue()
+
     def remove_item(self, song_id: int) -> None:
         self._items = [i for i in self._items if i.song_id != song_id]
         self._save_queue()
@@ -69,6 +84,12 @@ class DownloadQueue:
             if i.status not in (QueueStatus.COMPLETED, QueueStatus.SKIPPED)
         ]
         self._save_queue()
+
+    def clear_all(self) -> None:
+        """Clear all items and remove the queue file."""
+        self._items.clear()
+        if self._queue_file.exists():
+            self._queue_file.unlink()
 
     def get_items(self) -> list[QueueItem]:
         return self._items.copy()
@@ -104,12 +125,12 @@ class DownloadQueue:
                     song_service = SongService(client)
                     playlist_service = PlaylistService(client)
 
-                    def progress_callback(downloaded: int, total: int) -> None:
-                        item.downloaded_bytes = downloaded
-                        item.total_bytes = total
+                    def progress_callback(downloaded: int, total: int, current_item=item) -> None:
+                        current_item.downloaded_bytes = downloaded
+                        current_item.total_bytes = total
                         if total > 0:
-                            item.progress = downloaded / total
-                        self._notify_progress(item)
+                            current_item.progress = downloaded / total
+                        self._notify_progress(current_item)
 
                     downloader = DownloadService(
                         song_service,

@@ -6,8 +6,9 @@ The library never swallows exceptions: every failure is raised as a
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 
 class MusicDLException(Exception):

@@ -8,10 +8,12 @@ import logging.handlers
 import sys
 import threading
 import traceback
-from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+
+from typing_extensions import Self
 
 from musicdl_gui.models import LogLevel
 
@@ -39,7 +41,7 @@ class ErrorLog:
     _instance: ErrorLog | None = None
     _lock = threading.Lock()
 
-    def __new__(cls) -> ErrorLog:
+    def __new__(cls) -> Self:
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
@@ -79,7 +81,7 @@ class ErrorLog:
 
     def log_exception(self, exc: Exception, source: str, context: dict | None = None) -> None:
         entry = ErrorLogEntry(
-            timestamp=datetime.now().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             level=LogLevel.ERROR.value,
             source=source,
             message=str(exc),
@@ -91,7 +93,7 @@ class ErrorLog:
 
     def log_message(self, level: str, source: str, message: str, context: dict | None = None) -> None:
         entry = ErrorLogEntry(
-            timestamp=datetime.now().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             level=level,
             source=source,
             message=message,
@@ -115,8 +117,7 @@ class ErrorLog:
 
     def export(self, path: Path) -> None:
         with open(path, "w", encoding="utf-8") as f:
-            for entry in self._entries:
-                f.write(json.dumps(asdict(entry), ensure_ascii=False) + "\n")
+            f.writelines(json.dumps(asdict(entry), ensure_ascii=False) + "\n" for entry in self._entries)
 
     def register_callback(self, callback: Callable[[ErrorLogEntry], None]) -> None:
         self._callbacks.append(callback)

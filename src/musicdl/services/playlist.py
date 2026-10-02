@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterator
+from collections.abc import Iterator
 
 from musicdl.api import endpoints
 from musicdl.client import SyncMusicClient

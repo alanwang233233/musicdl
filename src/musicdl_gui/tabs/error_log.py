@@ -1,10 +1,11 @@
 """Error log tab."""
 
-import flet as ft
 from pathlib import Path
 
-from musicdl_gui.error_log import ErrorLog
+import flet as ft
+
 from musicdl_gui.components.error_log_table import ErrorLogTable
+from musicdl_gui.error_log import ErrorLog
 
 
 class ErrorLogTab(ft.Column):

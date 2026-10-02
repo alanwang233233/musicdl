@@ -3,19 +3,19 @@
 from __future__ import annotations
 
 import asyncio
-import time
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 from musicdl import (
     MusicDLConfig,
-    SyncMusicClient,
-    PlaylistService,
-    SongService,
     Playlist,
+    PlaylistService,
     SongInfo,
+    SongService,
     SongUrl,
+    SyncMusicClient,
 )
-from musicdl.exceptions import MusicDLException, NetworkError, APIError
+from musicdl.exceptions import APIError, MusicDLException, NetworkError
 from musicdl_gui.error_log import ErrorLog
 
 T = TypeVar("T")
@@ -62,7 +62,7 @@ class ApiClient:
     async def fetch_playlist(self, playlist_id: str) -> Playlist:
         """Fetch playlist with all tracks."""
         try:
-            client = self._ensure_client()
+            self._ensure_client()
             return await self._with_retry(
                 lambda: asyncio.to_thread(self._playlist_service.get_all_tracks, playlist_id)
             )
@@ -73,7 +73,7 @@ class ApiClient:
     async def fetch_song_info(self, song_id: int) -> SongInfo:
         """Fetch song metadata."""
         try:
-            client = self._ensure_client()
+            self._ensure_client()
             return await self._with_retry(
                 lambda: asyncio.to_thread(self._song_service.get_info, song_id)
             )
@@ -84,7 +84,7 @@ class ApiClient:
     async def get_song_url(self, song_id: int, level: str | None = None) -> SongUrl:
         """Fetch song playback URL."""
         try:
-            client = self._ensure_client()
+            self._ensure_client()
             return await self._with_retry(
                 lambda: asyncio.to_thread(self._song_service.get_url, song_id, level=level)
             )

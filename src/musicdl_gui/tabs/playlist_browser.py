@@ -1,14 +1,15 @@
 """Playlist browser tab."""
 
-import flet as ft
 from pathlib import Path
 
+import flet as ft
+
 from musicdl_gui.api import ApiClient
+from musicdl_gui.components.playlist_card import PlaylistCard
+from musicdl_gui.components.track_list import TrackList
 from musicdl_gui.config import ConfigManager
 from musicdl_gui.error_log import ErrorLog
 from musicdl_gui.queue import DownloadQueue
-from musicdl_gui.components.playlist_card import PlaylistCard
-from musicdl_gui.components.track_list import TrackList
 
 
 class PlaylistBrowserTab(ft.Column):
@@ -57,6 +58,10 @@ class PlaylistBrowserTab(ft.Column):
         if not playlist_id:
             return
 
+        # Lock button during fetch
+        self.fetch_button.disabled = True
+        self.fetch_button.update()
+
         self.progress_bar.visible = True
         self.progress_bar.update()
 
@@ -66,12 +71,15 @@ class PlaylistBrowserTab(ft.Column):
             playlist = await self._api.fetch_playlist(playlist_id)
             self._current_playlist = playlist
             self._update_content(playlist)
-        except Exception as exc:
+        except (RuntimeError, ValueError, OSError) as exc:
             self._error_log.log_exception(exc, "playlist_browser", {"playlist_id": playlist_id})
             await self._show_snack(f"Error: {exc}")
         finally:
             self.progress_bar.visible = False
             self.progress_bar.update()
+            # Unlock button
+            self.fetch_button.disabled = False
+            self.fetch_button.update()
 
     def _update_content(self, playlist):
         self.content_area.controls = [
@@ -91,9 +99,32 @@ class PlaylistBrowserTab(ft.Column):
                     ),
                 ],
             ),
-            TrackList(playlist.songs),
+            TrackList(
+                tracks=playlist.songs,
+                on_download=self._on_track_download,
+                on_play=self._on_track_play,
+            ),
         ]
         self.content_area.update()
+
+    def _on_track_download(self, track):
+        """Download a single track from the playlist."""
+        config = self._config_mgr.load()
+        output_dir = Path(config.get("output_dir", "./music"))
+        self._queue.add_playlist_single_track(self._current_playlist, track, config.get("default_level", "standard"), output_dir)
+        self._queue.start()
+        self._show_snack(f"Downloading: {track.singer} - {track.name}")
+
+    def _on_track_play(self, track):
+        """Play a single track from the playlist."""
+        # This would need access to playback service
+        # For now, add to queue and play
+        self._show_snack(f"Play: {track.singer} - {track.name}")
+
+    async def _show_snack(self, message: str) -> None:
+        snack = ft.SnackBar(content=ft.Text(message), open=True)
+        self.page.overlay.append(snack)
+        self.page.update()
 
     async def _on_download_all(self):
         if self._current_playlist:

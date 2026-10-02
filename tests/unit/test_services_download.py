@@ -73,7 +73,7 @@ def make_playlist(songs: list[SongInfo]) -> Playlist:
 
 @responses.activate
 def test_download_song_with_explicit_output(tmp_path: Path) -> None:
-    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200)
+    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200, content_type="audio/mpeg")
     svc = make_song_service()
     downloader = DownloadService(svc, output_dir=tmp_path)
     target = tmp_path / "explicit.mp3"
@@ -85,7 +85,7 @@ def test_download_song_with_explicit_output(tmp_path: Path) -> None:
 
 @responses.activate
 def test_download_song_without_output_uses_template(tmp_path: Path) -> None:
-    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200)
+    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200, content_type="audio/mpeg")
     svc = make_song_service(make_song_info(singer="皮卡丘多多", name="想想念念"))
     downloader = DownloadService(svc, output_dir=tmp_path)
     result = downloader.download_song(1)
@@ -95,7 +95,7 @@ def test_download_song_without_output_uses_template(tmp_path: Path) -> None:
 
 @responses.activate
 def test_illegal_characters_sanitized(tmp_path: Path) -> None:
-    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200)
+    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200, content_type="audio/mpeg")
     svc = make_song_service(make_song_info(singer="AC/DC", name='a:b*c?"d'))
     downloader = DownloadService(svc, output_dir=tmp_path)
     result = downloader.download_song(1)
@@ -105,7 +105,7 @@ def test_illegal_characters_sanitized(tmp_path: Path) -> None:
 
 @responses.activate
 def test_progress_callback_invoked(tmp_path: Path) -> None:
-    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200)
+    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200, content_type="audio/mpeg")
     calls: list[tuple[int, int]] = []
     svc = make_song_service()
     downloader = DownloadService(
@@ -148,7 +148,7 @@ def test_playlist_skips_existing_files(tmp_path: Path) -> None:
     svc = make_song_service()
     downloader = DownloadService(svc, output_dir=tmp_path)
     # Track 1 pre-exists; track 2 must still be downloaded.
-    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200)
+    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200, content_type="audio/mpeg")
     svc.get_url.side_effect = None
     svc.get_url.return_value = make_song_url(song_id=2)
     result = downloader.download_playlist(playlist, skip_existing=True)
@@ -160,7 +160,7 @@ def test_playlist_skips_existing_files(tmp_path: Path) -> None:
 @responses.activate
 def test_playlist_default_failure_raises_with_context(tmp_path: Path) -> None:
     playlist = make_playlist([make_song_info(song_id=1), make_song_info(song_id=2, name="第二首")])
-    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200)
+    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200, content_type="audio/mpeg")
     svc = make_song_service()
     svc.get_url.side_effect = [make_song_url(song_id=1), NetworkError("boom")]
     downloader = DownloadService(svc, output_dir=tmp_path)
@@ -176,7 +176,7 @@ def test_playlist_default_failure_raises_with_context(tmp_path: Path) -> None:
 @responses.activate
 def test_playlist_skip_failed_continues(tmp_path: Path) -> None:
     playlist = make_playlist([make_song_info(song_id=1), make_song_info(song_id=2, name="第二首")])
-    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200)
+    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200, content_type="audio/mpeg")
     svc = make_song_service()
     svc.get_url.side_effect = [NetworkError("boom"), make_song_url(song_id=2)]
     downloader = DownloadService(svc, output_dir=tmp_path)
@@ -200,7 +200,7 @@ def test_unknown_placeholder_raises_config_error(tmp_path: Path) -> None:
 
 @responses.activate
 def test_subdirectory_template(tmp_path: Path) -> None:
-    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200)
+    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200, content_type="audio/mpeg")
     svc = make_song_service(make_song_info(singer="歌手A", name="曲名", album="专辑X"))
     downloader = DownloadService(
         svc,
@@ -214,7 +214,7 @@ def test_subdirectory_template(tmp_path: Path) -> None:
 
 @responses.activate
 def test_level_forwarded_to_get_url(tmp_path: Path) -> None:
-    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200)
+    responses.add(responses.GET, MP3_URL, body=AUDIO, status=200, content_type="audio/mpeg")
     svc = make_song_service()
     downloader = DownloadService(svc, output_dir=tmp_path)
     downloader.download_song(1, level=QualityLevel.STANDARD, output=tmp_path / "a.mp3")

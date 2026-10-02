@@ -5,12 +5,12 @@ from musicdl.models.playlist import Playlist, PlaylistCreator, PlaylistTrack
 from musicdl.models.song import CookieInfo, SongInfo, SongUrl
 
 __all__ = [
-    "QualityLevel",
-    "CopyrightType",
-    "SongInfo",
-    "SongUrl",
     "CookieInfo",
+    "CopyrightType",
     "Playlist",
     "PlaylistCreator",
     "PlaylistTrack",
+    "QualityLevel",
+    "SongInfo",
+    "SongUrl",
 ]

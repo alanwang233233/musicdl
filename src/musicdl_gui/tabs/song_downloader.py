@@ -1,13 +1,15 @@
 """Song downloader tab."""
 
-import flet as ft
 from pathlib import Path
+
+import flet as ft
 
 from musicdl_gui.api import ApiClient
 from musicdl_gui.config import ConfigManager
 from musicdl_gui.error_log import ErrorLog
+from musicdl_gui.models import QueueItem
+from musicdl_gui.playback import PlaybackService, TempFileManager
 from musicdl_gui.queue import DownloadQueue, _sanitize_filename
-from musicdl_gui.models import QueueItem, QueueStatus
 
 
 class SongDownloaderTab(ft.Column):
@@ -23,6 +25,8 @@ class SongDownloaderTab(ft.Column):
         self._error_log = error_log
         self._api: ApiClient | None = None
         self._song_info = None
+        self._playback_service: PlaybackService | None = None
+        self._temp_manager = TempFileManager()
 
         self.id_input = ft.TextField(
             label="Song ID",
@@ -33,6 +37,12 @@ class SongDownloaderTab(ft.Column):
             content=ft.Text("Preview"),
             icon=ft.Icons.PREVIEW,
             on_click=self._on_preview,
+        )
+        self.play_button = ft.FilledButton(
+            content=ft.Text("Play"),
+            icon=ft.Icons.PLAY_ARROW,
+            on_click=self._on_play,
+            disabled=True,
         )
         self.quality_dropdown = ft.Dropdown(
             label="Quality",
@@ -67,10 +77,14 @@ class SongDownloaderTab(ft.Column):
             self.info_card,
             ft.Row(
                 spacing=8,
-                controls=[self.quality_dropdown, self.download_button],
+                controls=[self.quality_dropdown, self.play_button, self.download_button],
             ),
             self.progress_bar,
         ]
+
+    def _set_playback_service(self, playback_service: PlaybackService) -> None:
+        """Set the playback service (called after initialization)."""
+        self._playback_service = playback_service
 
     async def _show_snack(self, message: str) -> None:
         snack = ft.SnackBar(content=ft.Text(message), open=True)
@@ -82,6 +96,10 @@ class SongDownloaderTab(ft.Column):
         if not song_id:
             return
 
+        # Lock button during preview
+        self.preview_button.disabled = True
+        self.preview_button.update()
+
         self.progress_bar.visible = True
         self.progress_bar.update()
 
@@ -92,12 +110,17 @@ class SongDownloaderTab(ft.Column):
             self._update_info_card()
             self.download_button.disabled = False
             self.download_button.update()
-        except Exception as exc:
+            self.play_button.disabled = False
+            self.play_button.update()
+        except (RuntimeError, ValueError, OSError) as exc:
             self._error_log.log_exception(exc, "song_downloader", {"song_id": song_id})
             await self._show_snack(f"Error: {exc}")
         finally:
             self.progress_bar.visible = False
             self.progress_bar.update()
+            # Unlock button
+            self.preview_button.disabled = False
+            self.preview_button.update()
 
     def _update_info_card(self):
         if self._song_info:
@@ -109,6 +132,34 @@ class SongDownloaderTab(ft.Column):
             ]
             self.info_card.visible = True
             self.info_card.update()
+
+    async def _on_play(self, e):
+        if not self._song_info or not self._playback_service:
+            return
+
+        # Lock button during playback start
+        self.play_button.disabled = True
+        self.play_button.update()
+
+        try:
+            # Add to playback service playlist and play
+            item = QueueItem(
+                song_id=self._song_info.id,
+                title=self._song_info.name,
+                singer=self._song_info.singer,
+                playlist="",
+                quality=self.quality_dropdown.value,
+                output_path=Path(""),
+            )
+            self._playback_service.set_playlist([item])
+            self._playback_service.play()
+            await self._show_snack("Playing...")
+        except (RuntimeError, ValueError, OSError) as exc:
+            self._error_log.log_exception(exc, "song_downloader", {"song_id": self._song_info.id})
+            await self._show_snack(f"Error: {exc}")
+        finally:
+            self.play_button.disabled = False
+            self.play_button.update()
 
     async def _on_download(self, e):
         if not self._song_info:

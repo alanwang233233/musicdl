@@ -9,9 +9,11 @@ logic lives here.
 from __future__ import annotations
 
 import time
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 import requests
+from typing_extensions import Self
 
 from musicdl.config import MusicDLConfig
 from musicdl.exceptions import (
@@ -170,8 +172,8 @@ class SyncMusicClient:
         """Close the underlying session."""
         self._session.close()
 
-    def __enter__(self) -> "SyncMusicClient":
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.close()

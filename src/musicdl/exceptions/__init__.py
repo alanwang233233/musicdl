@@ -11,11 +11,11 @@ from musicdl.exceptions.errors import (
 )
 
 __all__ = [
-    "MusicDLException",
-    "ConfigError",
-    "IPFetchError",
     "APIError",
+    "ConfigError",
+    "DownloadError",
+    "IPFetchError",
+    "MusicDLException",
     "NetworkError",
     "ValidationError",
-    "DownloadError",
 ]

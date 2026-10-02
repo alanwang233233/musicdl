@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 import requests
 
@@ -99,13 +100,12 @@ def _classify_error(exc: BaseException) -> str:
             if exc.payload.get("code") == 429:
                 return "限流(429)"
 
-    if isinstance(exc, requests.HTTPError):
-        if exc.response is not None:
-            status = exc.response.status_code
-            if status == 429:
-                return "限流(429)"
-            if status == 404:
-                return "未找到(404)"
+    if isinstance(exc, requests.HTTPError) and exc.response is not None:
+        status = exc.response.status_code
+        if status == 429:
+            return "限流(429)"
+        if status == 404:
+            return "未找到(404)"
 
     if isinstance(exc, DownloadError) and exc.__cause__:
         return _classify_error(exc.__cause__)

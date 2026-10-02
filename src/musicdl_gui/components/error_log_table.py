@@ -1,6 +1,7 @@
 """Error log table component."""
 
 import flet as ft
+
 from musicdl_gui.error_log import ErrorLogEntry
 
 
@@ -8,11 +9,11 @@ class ErrorLogTable(ft.DataTable):
     def __init__(self):
         super().__init__(
             columns=[
-                ft.DataColumn(ft.Text("Time")),
-                ft.DataColumn(ft.Text("Level")),
-                ft.DataColumn(ft.Text("Source")),
-                ft.DataColumn(ft.Text("Message")),
-                ft.DataColumn(ft.Text("Exception")),
+                ft.DataColumn(label=ft.Text("Time")),
+                ft.DataColumn(label=ft.Text("Level")),
+                ft.DataColumn(label=ft.Text("Source")),
+                ft.DataColumn(label=ft.Text("Message")),
+                ft.DataColumn(label=ft.Text("Exception")),
             ],
             rows=[],
         )

@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 import os
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import requests
 
@@ -176,7 +176,7 @@ class DownloadService:
                     output_path=target,
                     completed=list(completed),
                     original=exc,
-                ) from exc
+) from exc
             completed.append(target)
         return completed
 
@@ -189,10 +189,24 @@ class DownloadService:
         part_path = target.with_name(target.name + ".part")
         try:
             url = self._songs.get_url(song_id, level=level)
+            if not url.url:
+                raise DownloadError(
+                    f"song {song_id} is not available for playback (no URL returned)",
+                    song_id=song_id,
+                    output_path=target,
+                )
             target.parent.mkdir(parents=True, exist_ok=True)
             timeout = float(self._songs.client.config.timeout)
             with requests.get(url.url, stream=True, timeout=timeout) as response:
                 response.raise_for_status()
+                # Check if response is actually audio content
+                content_type = response.headers.get("content-type", "")
+                if not content_type.startswith("audio/"):
+                    raise DownloadError(
+                        f"song {song_id} returned non-audio content (content-type: {content_type})",
+                        song_id=song_id,
+                        output_path=target,
+                    )
                 total = url.size if url.size > 0 else -1
                 downloaded = 0
                 with open(part_path, "wb") as handle:
@@ -203,7 +217,15 @@ class DownloadService:
                         downloaded += len(chunk)
                         if self._progress is not None:
                             self._progress(downloaded, total)
-            os.replace(part_path, target)
+                # Only rename if the part file exists and has content
+                if part_path.exists() and part_path.stat().st_size > 0:
+                    os.replace(part_path, target)
+                else:
+                    raise DownloadError(
+                        f"downloaded file is empty for song {song_id}",
+                        song_id=song_id,
+                        output_path=target,
+                    )
         except DownloadError:
             raise
         except (requests.RequestException, OSError, MusicDLException) as exc:

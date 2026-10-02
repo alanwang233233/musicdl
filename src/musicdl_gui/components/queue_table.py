@@ -1,6 +1,7 @@
 """Download queue table component - optimized for real-time updates."""
 
 import flet as ft
+
 from musicdl_gui.models import QueueItem, QueueStatus
 
 
@@ -14,12 +15,12 @@ class QueueRow(ft.Container):
         self.on_remove = on_remove
         self.index = index
 
-        self.padding = ft.Padding(left=12, top=8, right=12, bottom=8)
+        self.padding = ft.Padding(12, 8, 12, 8)
         self.border = ft.Border(
-            left=ft.BorderSide(0, ft.Colors.TRANSPARENT),
-            right=ft.BorderSide(0, ft.Colors.TRANSPARENT),
             top=ft.BorderSide(0, ft.Colors.TRANSPARENT),
+            right=ft.BorderSide(0, ft.Colors.TRANSPARENT),
             bottom=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+            left=ft.BorderSide(0, ft.Colors.TRANSPARENT),
         )
         self.content = self._build_content()
 
@@ -51,7 +52,7 @@ class QueueRow(ft.Container):
                 weight=ft.FontWeight.W_500,
                 color=ft.Colors.WHITE,
             ),
-            padding=ft.Padding(left=8, top=2, right=8, bottom=2),
+            padding=ft.Padding(8, 2, 8, 2),
             border_radius=12,
             bgcolor=status_color,
         )
@@ -116,7 +117,7 @@ class QueueRow(ft.Container):
         self.item = item
         self.index = index
         self.content = self._build_content()
-        self.update()
+        # Don't call self.update() here - let parent ListView handle it
 
 
 class QueueTable(ft.ListView):
@@ -126,7 +127,7 @@ class QueueTable(ft.ListView):
         super().__init__(
             expand=True,
             spacing=0,
-            padding=ft.Padding(left=0, top=8, right=0, bottom=8),
+            padding=ft.Padding(0, 8, 0, 8),
             auto_scroll=False,
         )
         self.on_retry = on_retry

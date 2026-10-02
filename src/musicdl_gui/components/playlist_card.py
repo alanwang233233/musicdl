@@ -1,6 +1,7 @@
 """Playlist info card component."""
 
 import flet as ft
+
 from musicdl import Playlist
 
 
