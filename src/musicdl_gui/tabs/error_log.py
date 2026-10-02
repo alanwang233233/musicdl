@@ -14,12 +14,12 @@ class ErrorLogTab(ft.Column):
         self._table = ErrorLogTable()
 
         self.clear_button = ft.OutlinedButton(
-            text="Clear Log",
+            content=ft.Text("Clear Log"),
             icon=ft.Icons.CLEAR,
             on_click=self._on_clear,
         )
         self.export_button = ft.OutlinedButton(
-            text="Export",
+            content=ft.Text("Export"),
             icon=ft.Icons.DOWNLOAD,
             on_click=self._on_export,
         )

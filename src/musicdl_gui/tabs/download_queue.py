@@ -18,12 +18,12 @@ class DownloadQueueTab(ft.Column):
         self._table._on_remove = self._on_remove
 
         self.clear_button = ft.OutlinedButton(
-            text="Clear Completed",
+            content=ft.Text("Clear Completed"),
             icon=ft.Icons.CLEAR,
             on_click=self._on_clear,
         )
         self.retry_all_button = ft.OutlinedButton(
-            text="Retry Failed",
+            content=ft.Text("Retry Failed"),
             icon=ft.Icons.REFRESH,
             on_click=self._on_retry_all,
         )

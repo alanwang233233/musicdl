@@ -31,11 +31,11 @@ def main(page: ft.Page) -> None:
             controls=[
                 ft.TabBar(
                     tabs=[
-                        ft.Tab(text="Playlist", icon=ft.Icons.QUEUE_MUSIC),
-                        ft.Tab(text="Song", icon=ft.Icons.MUSIC_NOTE),
-                        ft.Tab(text="Queue", icon=ft.Icons.DOWNLOAD),
-                        ft.Tab(text="Settings", icon=ft.Icons.SETTINGS),
-                        ft.Tab(text="Errors", icon=ft.Icons.ERROR),
+                        ft.Tab(label="Playlist", icon=ft.Icons.QUEUE_MUSIC),
+                        ft.Tab(label="Song", icon=ft.Icons.MUSIC_NOTE),
+                        ft.Tab(label="Queue", icon=ft.Icons.DOWNLOAD),
+                        ft.Tab(label="Settings", icon=ft.Icons.SETTINGS),
+                        ft.Tab(label="Errors", icon=ft.Icons.ERROR),
                     ],
                 ),
                 ft.TabBarView(
