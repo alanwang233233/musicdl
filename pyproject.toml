@@ -3,14 +3,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "musicdl-gui"
+name = "musicdl"
 version = "0.1.0"
-description = "Cross-platform GUI for musicdl library"
+description = "Python client library for the self-hosted NextMusic API: playlists, song info, playback URLs and downloads"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "flet>=1.0.0",
-    "musicdl>=0.1.0",
+    "requests>=2.28",
+    "pydantic>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -19,20 +19,29 @@ dev = [
     "pytest-cov>=4.0",
     "responses>=0.24",
     "pyinstaller>=6.0",
+    "pipx>=1.7",
+]
+cli = [
+    "typer>=0.9",
+    "rich>=13.0",
+]
+gui = [
+    "flet>=1.0.0",
 ]
 
 [project.scripts]
+musicdl = "musicdl_cli.main:app"
 musicdl-gui = "musicdl_gui.main:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/musicdl_gui"]
+packages = ["src/musicdl", "src/musicdl_cli", "src/musicdl_gui"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --cov=musicdl_gui --cov-report=term-missing"
 
 [tool.coverage.run]
-source = ["musicdl_gui"]
+source = ["musicdl", "musicdl_gui"]
 
 [tool.flet]
 org = "com.musicdl"

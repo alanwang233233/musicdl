@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import logging.handlers
 import sys
 import threading
 import traceback
@@ -11,6 +12,8 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
+
+from musicdl_gui.models import LogLevel
 
 LOG_DIR = Path.home() / ".config" / "musicdl-gui"
 LOG_FILE = LOG_DIR / "error.log"
@@ -57,7 +60,12 @@ class ErrorLog:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
         self._logger = logging.getLogger("musicdl_gui")
         self._logger.setLevel(logging.DEBUG)
-        handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+        handler = logging.handlers.RotatingFileHandler(
+            LOG_FILE,
+            maxBytes=MAX_FILE_SIZE,
+            backupCount=5,
+            encoding="utf-8",
+        )
         handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
         self._logger.addHandler(handler)
 
@@ -72,7 +80,7 @@ class ErrorLog:
     def log_exception(self, exc: Exception, source: str, context: dict | None = None) -> None:
         entry = ErrorLogEntry(
             timestamp=datetime.now().isoformat(),
-            level="ERROR",
+            level=LogLevel.ERROR.value,
             source=source,
             message=str(exc),
             exception_type=type(exc).__name__,

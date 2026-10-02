@@ -164,24 +164,25 @@ def download_playlist(
 
             console.print(f"\n[{i}/{len(playlist.songs)}] {track.singer} - {track.name}")
 
-            def _download_one_track() -> Path:
+            def _download_one_track() -> tuple[Path, bool]:
+                """Returns (path, was_skipped)."""
                 # Get target path with correct extension
                 target_path = _get_target_path(output_dir, safe_singer, safe_name, song_service, track.id, quality)
 
                 if target_path.exists() and skip_existing:
-                    return target_path
+                    return target_path, True
 
                 return downloader.download_song(
                     track.id,
                     level=quality,
                     output=target_path,
-                )
+                ), False
 
             def _on_retry(attempt: int, reason: str) -> None:
                 console.print(f"  [yellow]⏳ {reason}，等待 {retry_wait}s 后重试 ({attempt}/{max_retries})...[/yellow]")
 
             try:
-                path = download_with_retry(
+                path, was_skipped = download_with_retry(
                     _download_one_track,
                     max_retries=max_retries,
                     retry_wait=retry_wait,
@@ -190,15 +191,12 @@ def download_playlist(
                 if path.exists() and path.stat().st_size == 0:
                     # Should not happen, but safety check
                     raise DownloadError("Downloaded file is empty", song_id=track.id, output_path=path)
-                if path in skipped:
-                    # Already counted as skipped
-                    pass
-                elif path in paths:
-                    # Already counted
-                    pass
+                if was_skipped:
+                    skipped.append(path)
+                    console.print(f"  ⊘ 已存在，跳过: {path.name}")
                 else:
                     paths.append(path)
-                console.print(f"  ✓ 已下载: {path.name}")
+                    console.print(f"  ✓ 已下载: {path.name}")
             except Exception as e:
                 failed.append((track, e))
                 console.print(f"  ✗ 失败: {e}")

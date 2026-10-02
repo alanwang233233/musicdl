@@ -92,10 +92,19 @@ class DownloadQueue:
                 with SyncMusicClient(config) as client:
                     song_service = SongService(client)
                     playlist_service = PlaylistService(client)
+
+                    def progress_callback(downloaded: int, total: int) -> None:
+                        item.downloaded_bytes = downloaded
+                        item.total_bytes = total
+                        if total > 0:
+                            item.progress = downloaded / total
+                        self._notify_progress(item)
+
                     downloader = DownloadService(
                         song_service,
                         playlist_service,
                         output_dir=item.output_path.parent,
+                        progress_callback=progress_callback,
                     )
                     await asyncio.to_thread(
                         downloader.download_song,
