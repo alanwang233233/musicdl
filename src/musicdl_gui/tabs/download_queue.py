@@ -56,7 +56,12 @@ class DownloadQueueTab(ft.Column):
                         ft.Container(
                             expand=True,
                             content=self._table,
-                            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                            border=ft.Border(
+                                left=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+                                right=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+                                top=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+                                bottom=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+                            ),
                             border_radius=8,
                         ),
                     ],

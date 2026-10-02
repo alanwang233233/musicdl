@@ -14,8 +14,13 @@ class QueueRow(ft.Container):
         self.on_remove = on_remove
         self.index = index
 
-        self.padding = ft.padding.symmetric(horizontal=12, vertical=8)
-        self.border = ft.border.only(bottom=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT))
+        self.padding = ft.Padding(left=12, top=8, right=12, bottom=8)
+        self.border = ft.Border(
+            left=ft.BorderSide(0, ft.Colors.TRANSPARENT),
+            right=ft.BorderSide(0, ft.Colors.TRANSPARENT),
+            top=ft.BorderSide(0, ft.Colors.TRANSPARENT),
+            bottom=ft.BorderSide(1, ft.Colors.OUTLINE_VARIANT),
+        )
         self.content = self._build_content()
 
     def _build_content(self) -> ft.Row:
@@ -121,7 +126,7 @@ class QueueTable(ft.ListView):
         super().__init__(
             expand=True,
             spacing=0,
-            padding=ft.padding.only(top=8, bottom=8),
+            padding=ft.Padding(left=0, top=8, right=0, bottom=8),
             auto_scroll=False,
         )
         self.on_retry = on_retry
