@@ -44,7 +44,7 @@ class PlaybackBar(ft.Container):
             max=100,
             value=0,
             expand=True,
-            on_change=self._on_progress_change,
+            on_change=self._on_slider_change,
             on_change_end=self._on_progress_change_end,
         )
 
@@ -147,7 +147,7 @@ class PlaybackBar(ft.Container):
         else:
             self._service.play()
 
-    def _on_progress_change(self, e) -> None:
+    def _on_slider_change(self, e) -> None:
         # Update time display while dragging
         progress = e.control.value / 100
         duration = self._service.duration
