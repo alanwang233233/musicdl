@@ -47,6 +47,11 @@ class PlaylistBrowserTab(ft.Column):
             self.content_area,
         ]
 
+    async def _show_snack(self, message: str) -> None:
+        snack = ft.SnackBar(content=ft.Text(message), open=True)
+        self.page.overlay.append(snack)
+        self.page.update()
+
     async def _on_fetch(self, e):
         playlist_id = self.id_input.value.strip()
         if not playlist_id:
@@ -63,9 +68,7 @@ class PlaylistBrowserTab(ft.Column):
             self._update_content(playlist)
         except Exception as exc:
             self._error_log.log_exception(exc, "playlist_browser", {"playlist_id": playlist_id})
-            self.page.show_snack_bar(
-                ft.SnackBar(content=ft.Text(f"Error: {exc}"))
-            )
+            await self._show_snack(f"Error: {exc}")
         finally:
             self.progress_bar.visible = False
             self.progress_bar.update()
@@ -92,15 +95,13 @@ class PlaylistBrowserTab(ft.Column):
         ]
         self.content_area.update()
 
-    def _on_download_all(self):
+    async def _on_download_all(self):
         if self._current_playlist:
             config = self._config_mgr.load()
             output_dir = Path(config.get("output_dir", "./music"))
             self._queue.add_playlist(self._current_playlist, config.get("default_level", "standard"), output_dir)
             self._queue.start()
-            self.page.show_snack_bar(
-                ft.SnackBar(content=ft.Text("Added to download queue"))
-            )
+            await self._show_snack("Added to download queue")
 
     def _on_add_to_queue(self):
         self._on_download_all()

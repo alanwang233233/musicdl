@@ -46,6 +46,11 @@ class ErrorLogTab(ft.Column):
         entries = self._error_log.get_entries(limit=100)
         self._table.update_entries(entries)
 
+    async def _show_snack(self, message: str) -> None:
+        snack = ft.SnackBar(content=ft.Text(message), open=True)
+        self.page.overlay.append(snack)
+        self.page.update()
+
     def _on_clear(self, e):
         self._error_log.clear()
         self._refresh()
@@ -56,6 +61,4 @@ class ErrorLogTab(ft.Column):
         path = await file_picker.save_file_async()
         if path:
             self._error_log.export(Path(path))
-            self.page.show_snack_bar(
-                ft.SnackBar(content=ft.Text(f"Exported to {path}"))
-            )
+            await self._show_snack(f"Exported to {path}")

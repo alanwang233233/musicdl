@@ -72,6 +72,11 @@ class SongDownloaderTab(ft.Column):
             self.progress_bar,
         ]
 
+    async def _show_snack(self, message: str) -> None:
+        snack = ft.SnackBar(content=ft.Text(message), open=True)
+        self.page.overlay.append(snack)
+        self.page.update()
+
     async def _on_preview(self, e):
         song_id = self.id_input.value.strip()
         if not song_id:
@@ -89,9 +94,7 @@ class SongDownloaderTab(ft.Column):
             self.download_button.update()
         except Exception as exc:
             self._error_log.log_exception(exc, "song_downloader", {"song_id": song_id})
-            self.page.show_snack_bar(
-                ft.SnackBar(content=ft.Text(f"Error: {exc}"))
-            )
+            await self._show_snack(f"Error: {exc}")
         finally:
             self.progress_bar.visible = False
             self.progress_bar.update()
@@ -107,7 +110,7 @@ class SongDownloaderTab(ft.Column):
             self.info_card.visible = True
             self.info_card.update()
 
-    def _on_download(self, e):
+    async def _on_download(self, e):
         if not self._song_info:
             return
 
@@ -125,6 +128,4 @@ class SongDownloaderTab(ft.Column):
         )
         self._queue.add_item(item)
         self._queue.start()
-        self.page.show_snack_bar(
-            ft.SnackBar(content=ft.Text("Added to download queue"))
-        )
+        await self._show_snack("Added to download queue")

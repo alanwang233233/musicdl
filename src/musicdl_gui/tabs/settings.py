@@ -85,6 +85,11 @@ class SettingsTab(ft.Column):
             ),
         ]
 
+    async def _show_snack(self, message: str) -> None:
+        snack = ft.SnackBar(content=ft.Text(message), open=True)
+        self.page.overlay.append(snack)
+        self.page.update()
+
     def _on_save(self, e):
         config = {
             "base_url": self.base_url_input.value,
@@ -96,22 +101,14 @@ class SettingsTab(ft.Column):
         }
         errors = self._config_mgr.validate(config)
         if errors:
-            self.page.show_snack_bar(
-                ft.SnackBar(content=ft.Text(f"Validation errors: {', '.join(errors)}"))
-            )
+            self._show_snack(f"Validation errors: {', '.join(errors)}")
             return
         self._config_mgr.save(config)
-        self.page.show_snack_bar(
-            ft.SnackBar(content=ft.Text("Settings saved"))
-        )
+        self._show_snack("Settings saved")
 
     def _on_reset(self, e):
         self._config_mgr.save(self._config_mgr.DEFAULT_CONFIG.copy())
-        self.page.show_snack_bar(
-            ft.SnackBar(content=ft.Text("Settings reset to defaults"))
-        )
+        self._show_snack("Settings reset to defaults")
 
     async def _on_test(self, e):
-        self.page.show_snack_bar(
-            ft.SnackBar(content=ft.Text("Testing connection..."))
-        )
+        await self._show_snack("Testing connection...")
