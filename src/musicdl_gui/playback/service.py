@@ -291,10 +291,6 @@ class PlaybackService:
         file_size = file_path.stat().st_size
         return (file_size * 8) / (128 * 1000)  # 128 kbps estimate
 
-    import flet_audio as fta
-
-    # ... existing code ...
-
     async def _play_audio_file(self, file_path: Path) -> None:
         """Play audio file using flet-audio."""
         try:
