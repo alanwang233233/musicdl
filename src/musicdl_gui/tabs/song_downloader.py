@@ -6,7 +6,7 @@ from pathlib import Path
 from musicdl_gui.api import ApiClient
 from musicdl_gui.config import ConfigManager
 from musicdl_gui.error_log import ErrorLog
-from musicdl_gui.queue import DownloadQueue
+from musicdl_gui.queue import DownloadQueue, _sanitize_filename
 from musicdl_gui.models import QueueItem, QueueStatus
 
 
@@ -118,13 +118,15 @@ class SongDownloaderTab(ft.Column):
         output_dir = Path(config.get("output_dir", "./music"))
         quality = self.quality_dropdown.value
 
+        singer = _sanitize_filename(self._song_info.singer)
+        title = _sanitize_filename(self._song_info.name)
         item = QueueItem(
             song_id=self._song_info.id,
             title=self._song_info.name,
             singer=self._song_info.singer,
             playlist="",
             quality=quality,
-            output_path=output_dir / f"{self._song_info.singer} - {self._song_info.name}.mp3",
+            output_path=output_dir / f"{singer} - {title}.mp3",
         )
         self._queue.add_item(item)
         self._queue.start()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -12,6 +13,14 @@ from musicdl_gui.error_log import ErrorLog
 from musicdl_gui.models import QueueItem, QueueStatus
 
 DEFAULT_QUEUE_FILE = Path.home() / ".config" / "musicdl-gui" / "queue.json"
+
+_ILLEGAL_CHARS = re.compile(r'[\\:*?"<>|\x00-\x1f]')
+
+
+def _sanitize_filename(value: str) -> str:
+    """Replace characters that are illegal in file names with ``_``,
+    but replace ``/`` with ``;`` to preserve readability."""
+    return _ILLEGAL_CHARS.sub("_", value.replace("/", ";")).strip()
 
 
 class DownloadQueue:
@@ -37,13 +46,15 @@ class DownloadQueue:
 
     def add_playlist(self, playlist: Playlist, quality: str, output_dir: Path) -> None:
         for idx, track in enumerate(playlist.songs, start=1):
+            singer = _sanitize_filename(track.singer)
+            title = _sanitize_filename(track.name)
             item = QueueItem(
                 song_id=track.id,
                 title=track.name,
                 singer=track.singer,
                 playlist=playlist.name,
                 quality=quality,
-                output_path=output_dir / f"{track.singer} - {track.name}.mp3",
+                output_path=output_dir / f"{singer} - {title}.mp3",
             )
             self._items.append(item)
         self._save_queue()

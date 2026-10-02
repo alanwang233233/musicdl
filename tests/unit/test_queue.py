@@ -327,3 +327,28 @@ async def test_process_queue_success(tmp_path, monkeypatch):
     items = queue.get_items()
     assert items[0].status == QueueStatus.COMPLETED
     assert items[0].progress == 1.0
+
+
+def test_sanitize_filename():
+    from musicdl_gui.queue import _sanitize_filename
+
+    # Test slash replacement
+    assert _sanitize_filename("a/b") == "a;b"
+    assert _sanitize_filename("a/b/c") == "a;b;c"
+    assert _sanitize_filename("/a/b/") == ";a;b;"
+
+    # Test other illegal characters replaced with underscore
+    assert _sanitize_filename('a:b') == "a_b"
+    assert _sanitize_filename('a*b') == "a_b"
+    assert _sanitize_filename('a?b') == "a_b"
+    assert _sanitize_filename('a"b') == "a_b"
+    assert _sanitize_filename('a<b') == "a_b"
+    assert _sanitize_filename('a>b') == "a_b"
+    assert _sanitize_filename('a|b') == "a_b"
+    assert _sanitize_filename('a\0b') == "a_b"
+
+    # Test mixed
+    assert _sanitize_filename('a/b:c') == "a;b_c"
+
+    # Test whitespace trimming
+    assert _sanitize_filename("  a/b  ") == "a;b"
