@@ -51,8 +51,8 @@ class PlaybackService:
         self._mode = PlaybackMode.SEQUENTIAL
         self._state = PlaybackState.STOPPED
         self._current_item: QueueItem | None = None
-        self._current_index = -1
         self._playlist: list[QueueItem] = []
+        self._history: list[QueueItem] = []
         self._progress = 0.0
         self._duration = 0.0
 
@@ -92,11 +92,10 @@ class PlaybackService:
     def set_playlist(self, items: list[QueueItem]) -> None:
         """Set the playback playlist."""
         self._playlist = items.copy()
+        self._history = []
         if self._playlist:
-            self._current_index = 0
             self._current_item = self._playlist[0]
         else:
-            self._current_index = -1
             self._current_item = None
         if self._on_track_change:
             self._on_track_change(self._current_item)
@@ -104,8 +103,7 @@ class PlaybackService:
     def add_to_playlist(self, item: QueueItem) -> None:
         """Add item to playlist."""
         self._playlist.append(item)
-        if self._current_index == -1:
-            self._current_index = 0
+        if self._current_item is None:
             self._current_item = item
             if self._on_track_change:
                 self._on_track_change(item)
@@ -115,7 +113,6 @@ class PlaybackService:
         if self._state == PlaybackState.PLAYING:
             return
         if self._current_item is None and self._playlist:
-            self._current_index = 0
             self._current_item = self._playlist[0]
             if self._on_track_change:
                 self._on_track_change(self._current_item)
@@ -156,7 +153,6 @@ class PlaybackService:
             self._page.run_task(self._audio.release)
             self._audio = None
         self._current_item = None
-        self._current_index = -1
         self._progress = 0.0
         self._duration = 0.0
         if self._on_progress_change:
@@ -168,25 +164,36 @@ class PlaybackService:
         """Play next track."""
         if not self._playlist:
             return
-        if self._mode == PlaybackMode.RANDOM:
-            self._current_index = random.randrange(len(self._playlist))
+        # Move current item to history
+        if self._current_item:
+            self._history.append(self._current_item)
+        # Pop first item
+        self._playlist.pop(0)
+        # Play new first item
+        if self._playlist:
+            self._current_item = self._playlist[0]
+            if self._on_track_change:
+                self._on_track_change(self._current_item)
+            if self._state == PlaybackState.PLAYING:
+                self._start_playback_task()
         else:
-            self._current_index = (self._current_index + 1) % len(self._playlist)
-        self._current_item = self._playlist[self._current_index]
-        if self._on_track_change:
-            self._on_track_change(self._current_item)
-        if self._state == PlaybackState.PLAYING:
-            self._start_playback_task()
+            self._current_item = None
+            self._state = PlaybackState.ENDED
+            if self._on_state_change:
+                self._on_state_change(self._state)
+            if self._on_track_change:
+                self._on_track_change(None)
 
     def previous_track(self) -> None:
         """Play previous track."""
-        if not self._playlist:
+        if not self._history:
             return
-        if self._mode == PlaybackMode.RANDOM:
-            self._current_index = random.randrange(len(self._playlist))
-        else:
-            self._current_index = (self._current_index - 1) % len(self._playlist)
-        self._current_item = self._playlist[self._current_index]
+        # Move current item back to front of playlist
+        if self._current_item:
+            self._playlist.insert(0, self._current_item)
+        # Pop last item from history
+        self._current_item = self._history.pop()
+        self._playlist.insert(0, self._current_item)
         if self._on_track_change:
             self._on_track_change(self._current_item)
         if self._state == PlaybackState.PLAYING:
@@ -251,19 +258,26 @@ class PlaybackService:
                     break
 
                 if self._mode == PlaybackMode.SINGLE_LOOP:
-                    continue  # Replay current
+                    # Replay current - keep _current_item as is (first in playlist)
+                    continue
                 elif self._mode == PlaybackMode.RANDOM:
-                    self._current_index = random.randrange(len(self._playlist))
+                    # Reshuffle playlist
+                    random.shuffle(self._playlist)
                 else:
-                    self._current_index += 1
+                    # SEQUENTIAL: pop first item (current), move to history
+                    self._history.append(self._current_item)
+                    self._playlist.pop(0)
 
-                if self._current_index >= len(self._playlist):
+                if not self._playlist:
                     self._state = PlaybackState.ENDED
                     if self._on_state_change:
                         self._on_state_change(self._state)
+                    self._current_item = None
+                    if self._on_track_change:
+                        self._on_track_change(None)
                     break
 
-                self._current_item = self._playlist[self._current_index]
+                self._current_item = self._playlist[0]
                 if self._on_track_change:
                     self._on_track_change(self._current_item)
 
@@ -273,23 +287,32 @@ class PlaybackService:
                 if self._on_error:
                     self._on_error(str(e))
                 # Try next track
-                if self._mode == PlaybackMode.RANDOM:
-                    self._current_index = random.randrange(len(self._playlist))
+                if self._mode == PlaybackMode.SINGLE_LOOP:
+                    # Retry current
+                    continue
+                elif self._mode == PlaybackMode.RANDOM:
+                    random.shuffle(self._playlist)
                 else:
-                    self._current_index += 1
-                if self._current_index >= len(self._playlist):
+                    if self._current_item:
+                        self._history.append(self._current_item)
+                    self._playlist.pop(0)
+
+                if not self._playlist:
                     self._state = PlaybackState.ENDED
                     if self._on_state_change:
                         self._on_state_change(self._state)
+                    self._current_item = None
+                    if self._on_track_change:
+                        self._on_track_change(None)
                     break
-                self._current_item = self._playlist[self._current_index]
+                self._current_item = self._playlist[0]
                 if self._on_track_change:
                     self._on_track_change(self._current_item)
 
     async def _get_audio_duration(self, file_path: Path) -> float:
         """Get audio duration using ffprobe."""
+        import subprocess
         try:
-            import subprocess
             result = await asyncio.to_thread(
                 subprocess.run,
                 [
