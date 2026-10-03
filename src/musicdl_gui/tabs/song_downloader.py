@@ -143,24 +143,21 @@ class SongDownloaderTab(ft.Column):
         self.play_button.update()
 
         try:
-            # Check if same song is already playing
-            current = self._playback_service.current_item
-            if current and current.song_id == self._song_info.id:
-                # Same song - just play/resume
-                self._playback_service.play()
-            else:
-                # Different song - set new playlist
-                item = QueueItem(
-                    song_id=self._song_info.id,
-                    title=self._song_info.name,
-                    singer=self._song_info.singer,
-                    playlist="",
-                    quality=self.quality_dropdown.value,
-                    output_path=Path(""),
-                    picimg=self._song_info.picimg or "",
-                )
-                self._playback_service.set_playlist([item])
-                self._playback_service.play()
+            # Stop any existing playback, clear queue and UI
+            self._playback_service.stop()
+
+            # Create new playlist with this track as first item
+            item = QueueItem(
+                song_id=self._song_info.id,
+                title=self._song_info.name,
+                singer=self._song_info.singer,
+                playlist="",
+                quality=self.quality_dropdown.value,
+                output_path=Path(""),
+                picimg=self._song_info.picimg or "",
+            )
+            self._playback_service.set_playlist([item])
+            self._playback_service.play()
             await self._show_snack("Playing...")
         except MusicDLException as exc:
             self._error_log.log_exception(exc, "song_downloader", {"song_id": self._song_info.id})

@@ -68,7 +68,6 @@ class PlaybackService:
         # Audio player
         self._audio: fta.Audio | None = None
         self._seeking = False
-        self._playback_task: asyncio.Task | None = None
 
     @property
     def mode(self) -> PlaybackMode:
@@ -118,20 +117,14 @@ class PlaybackService:
 
     def play(self) -> None:
         """Start or resume playback."""
-        # If same song is already playing, do nothing
         if self._state == PlaybackState.PLAYING:
             return
-        
         if self._current_item is None and self._playlist:
             self._current_item = self._playlist[0]
             for cb in self._on_track_change:
                 cb(self._current_item)
         if self._current_item is None:
             return
-
-        # If currently playing a different track, stop current first
-        if self._state == PlaybackState.PLAYING and self._audio:
-            self.stop()
 
         # Resume from pause if audio exists
         if self._state == PlaybackState.PAUSED:
@@ -231,10 +224,7 @@ class PlaybackService:
 
     def _start_playback_task(self) -> None:
         if self._current_item:
-            # Cancel existing task if any
-            if self._playback_task is not None and not self._playback_task.done():
-                self._playback_task.cancel()
-            self._playback_task = asyncio.create_task(self._playback_loop())
+            asyncio.create_task(self._playback_loop())
 
     async def _playback_loop(self) -> None:
         """Main playback loop - downloads to temp and plays via flet-audio."""
