@@ -1,5 +1,7 @@
 """Track list component with right-click context menu."""
 
+from collections.abc import Callable
+
 import flet as ft
 
 from musicdl import PlaylistTrack
@@ -9,8 +11,8 @@ class TrackList(ft.ListView):
     def __init__(
         self,
         tracks: list[PlaylistTrack],
-        on_download: callable,
-        on_play: callable,
+        on_download: Callable,
+        on_play: Callable,
     ) -> None:
         super().__init__(
             expand=True,
