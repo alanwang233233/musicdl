@@ -69,6 +69,10 @@ class PlaybackService:
         self._audio: fta.Audio | None = None
         self._seeking = False
 
+        # Playback task management
+        self._task: asyncio.Task | None = None
+        self._generation = 0
+
     @property
     def mode(self) -> PlaybackMode:
         return self._mode
@@ -155,6 +159,12 @@ class PlaybackService:
 
     def stop(self) -> None:
         """Stop playback."""
+        # Invalidate current playback session and cancel its task
+        self._generation += 1
+        if self._task and not self._task.done():
+            self._task.cancel()
+        self._task = None
+
         self._state = PlaybackState.STOPPED
         for cb in self._on_state_change:
             cb(self._state)
@@ -165,6 +175,8 @@ class PlaybackService:
             self._page.run_task(audio.pause)
             self._page.run_task(audio.release)
         self._current_item = None
+        self._playlist = []
+        self._history = []
         self._progress = 0.0
         self._duration = 0.0
         for cb in self._on_progress_change:
@@ -223,12 +235,18 @@ class PlaybackService:
             self._page.run_task(audio.seek, target_ms)
 
     def _start_playback_task(self) -> None:
-        if self._current_item:
-            asyncio.create_task(self._playback_loop())
+        if not self._current_item:
+            return
+        # Cancel any existing playback task before starting a new one
+        if self._task and not self._task.done():
+            self._task.cancel()
+        self._generation += 1
+        gen = self._generation
+        self._task = self._page.run_task(self._playback_loop, gen)
 
-    async def _playback_loop(self) -> None:
+    async def _playback_loop(self, generation: int) -> None:
         """Main playback loop - downloads to temp and plays via flet-audio."""
-        while self._current_item:
+        while self._current_item and generation == self._generation:
             # Wait if paused
             while self._state == PlaybackState.PAUSED:
                 await asyncio.sleep(0.1)
@@ -265,6 +283,10 @@ class PlaybackService:
                 except OSError:
                     pass
 
+                # Superseded by a newer playback session?
+                if generation != self._generation:
+                    break
+
                 # Handle next track based on mode
                 if self._state in (PlaybackState.STOPPED, PlaybackState.ENDED):
                     break
@@ -292,13 +314,12 @@ class PlaybackService:
                 self._current_item = self._playlist[0]
                 for cb in self._on_track_change:
                     cb(self._current_item)
-                    self._on_track_change(self._current_item)
 
             except asyncio.CancelledError:
                 break
             except MusicDLException as e:
-                if self._on_error:
-                    self._on_error(str(e))
+                for cb in self._on_error:
+                    cb(str(e))
                 # Try next track
                 if self._mode == PlaybackMode.SINGLE_LOOP:
                     # Retry current
@@ -312,15 +333,15 @@ class PlaybackService:
 
                 if not self._playlist:
                     self._state = PlaybackState.ENDED
-                    if self._on_state_change:
-                        self._on_state_change(self._state)
+                    for cb in self._on_state_change:
+                        cb(self._state)
                     self._current_item = None
-                    if self._on_track_change:
-                        self._on_track_change(None)
+                    for cb in self._on_track_change:
+                        cb(None)
                     break
                 self._current_item = self._playlist[0]
-                if self._on_track_change:
-                    self._on_track_change(self._current_item)
+                for cb in self._on_track_change:
+                    cb(self._current_item)
 
     async def _get_audio_duration(self, file_path: Path) -> float:
         """Get audio duration using ffprobe."""
@@ -349,50 +370,60 @@ class PlaybackService:
     async def _play_audio_file(self, file_path: Path) -> None:
         """Play audio file using flet-audio."""
         if not file_path.exists():
-            raise RuntimeError(f"Audio file not found: {file_path}")
+            from musicdl import DownloadError
+
+            raise DownloadError(f"Audio file not found: {file_path}")
+        # Convert to file:// URL for flet-audio
+        audio = fta.Audio(
+            src=file_path.as_uri(),
+            autoplay=True,
+            volume=1.0,
+            balance=0.0,
+            release_mode=fta.ReleaseMode.STOP,
+        )
+        # Bind handlers to this specific audio instance so stale events from a
+        # previous audio control cannot corrupt the current playback state.
+        audio.on_loaded = lambda _: None
+        audio.on_duration_change = lambda e, a=audio: self._on_duration_change(
+            a, e.duration if hasattr(e, "duration") else 0
+        )
+        audio.on_position_change = lambda e, a=audio: self._on_position_change(
+            a, e.position if hasattr(e, "position") else 0
+        )
+        audio.on_state_change = lambda e, a=audio: self._on_flet_audio_state_change(
+            a, e.state if hasattr(e, "state") else fta.AudioState.STOPPED
+        )
+        audio.on_seek_complete = lambda _, a=audio: self._on_seek_complete(a)
+
+        self._audio = audio
         try:
-            # Convert to file:// URL for flet-audio
-            src = file_path.as_uri()
-            # Create audio control
-            self._audio = fta.Audio(
-                src=src,
-                autoplay=True,
-                volume=1.0,
-                balance=0.0,
-                release_mode=fta.ReleaseMode.STOP,
-                on_loaded=lambda _: None,
-                on_duration_change=lambda e: self._on_duration_change(e.duration if hasattr(e, 'duration') else 0),
-                on_position_change=lambda e: self._on_position_change(e.position if hasattr(e, 'position') else 0),
-                on_state_change=lambda e: self._on_flet_audio_state_change(e.state if hasattr(e, 'state') else fta.AudioState.STOPPED),
-                on_seek_complete=lambda _: setattr(self, '_seeking', False),
-            )
-            # Add to page services
-            self._page.services.append(self._audio)
+            # Register the audio control with the client before issuing play
+            self._page.services.append(audio)
+            self._page.update()
             # Play
-            await self._audio.play()
+            await audio.play()
             # Wait for playback to complete or be interrupted
-            while self._audio and self._state != PlaybackState.STOPPED:
+            while self._audio is audio and self._state != PlaybackState.STOPPED:
                 # Wait if paused
-                while self._state == PlaybackState.PAUSED and self._audio:
+                while self._state == PlaybackState.PAUSED and self._audio is audio:
                     await asyncio.sleep(0.1)
-                # Exit if stopped or ended
-                if self._state in (PlaybackState.STOPPED, PlaybackState.ENDED):
-                    break
-                # Check audio still exists before sleep
-                if not self._audio:
+                # Exit if stopped/ended or superseded by a newer audio
+                if self._audio is not audio or self._state in (
+                    PlaybackState.STOPPED,
+                    PlaybackState.ENDED,
+                ):
                     break
                 await asyncio.sleep(0.5)
         except MusicDLException as e:
             for cb in self._on_error:
                 cb(f"Playback error: {e}")
         finally:
-            audio = self._audio
-            self._audio = None
-            if audio:
-                try:
-                    await audio.release()
-                except MusicDLException:
-                    pass
+            if self._audio is audio:
+                self._audio = None
+            try:
+                await audio.release()
+            except MusicDLException:
+                pass
 
     def _to_seconds(self, duration) -> float:
         """Convert flet Duration to seconds."""
@@ -409,25 +440,34 @@ class PlaybackService:
             return float(duration) / 1000.0
         return 0.0
 
-    def _on_duration_change(self, duration) -> None:
+    def _on_duration_change(self, audio, duration) -> None:
         """Handle duration change event from flet-audio."""
+        if audio is not self._audio:
+            return
         duration = self._to_seconds(duration)
         if duration > self._duration:
             self._duration = duration
             for cb in self._on_progress_change:
                 cb(self._progress, self._duration)
 
-    def _on_position_change(self, position) -> None:
+    def _on_position_change(self, audio, position) -> None:
         """Handle position change event from flet-audio."""
-        if self._seeking:
+        if audio is not self._audio or self._seeking:
             return
         position = self._to_seconds(position)
         self._progress = position / self._duration if self._duration > 0 else 0.0
         for cb in self._on_progress_change:
             cb(self._progress, self._duration)
 
-    def _on_flet_audio_state_change(self, state) -> None:
+    def _on_seek_complete(self, audio) -> None:
+        """Handle seek completion from flet-audio."""
+        if audio is self._audio:
+            self._seeking = False
+
+    def _on_flet_audio_state_change(self, audio, state) -> None:
         """Handle state change event from flet-audio (converts fta.AudioState to our PlaybackState)."""
+        if audio is not self._audio:
+            return
         # Map fta.AudioState to our PlaybackState
         if state == fta.AudioState.PLAYING or state == "playing":
             self._state = PlaybackState.PLAYING
