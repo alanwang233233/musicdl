@@ -154,9 +154,9 @@ class PlaybackDialog(ft.AlertDialog):
         )
 
         # Register callbacks
-        self._service.set_on_track_change(self._on_track_change)
-        self._service.set_on_state_change(self._on_state_change)
-        self._service.set_on_progress_change(self._on_service_progress_change)
+        self._service.add_on_track_change(self._on_track_change)
+        self._service.add_on_state_change(self._on_state_change)
+        self._service.add_on_progress_change(self._on_service_progress_change)
 
     def _on_play_pause(self, e) -> None:
         if self._service.state == PlaybackState.PLAYING:
@@ -179,11 +179,17 @@ class PlaybackDialog(ft.AlertDialog):
         if item:
             self.title_text.value = item.title
             self.artist_text.value = item.singer
-            # In real implementation, fetch cover image
-            # self.cover_image.src = item.picimg or ""
+            # Load cover image from item's picimg
+            if item.picimg:
+                self.cover_image.src = item.picimg
+            else:
+                self.cover_image.src = ""
+            self.cover_image.update()
         else:
             self.title_text.value = ""
             self.artist_text.value = ""
+            self.cover_image.src = ""
+            self.cover_image.update()
         self.title_text.update()
         self.artist_text.update()
 

@@ -35,3 +35,4 @@ class QueueItem:
     total_bytes: int = 0
     error: str | None = None
     retry_count: int = 0
+    picimg: str = ""

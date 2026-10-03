@@ -137,9 +137,9 @@ class PlaybackBar(ft.Container):
         )
 
         # Register callbacks
-        self._service.set_on_track_change(self._on_track_change)
-        self._service.set_on_state_change(self._on_state_change)
-        self._service.set_on_progress_change(self._on_progress_change)
+        self._service.add_on_track_change(self._on_track_change)
+        self._service.add_on_state_change(self._on_state_change)
+        self._service.add_on_progress_change(self._on_progress_change)
 
     def _on_play_pause(self, e) -> None:
         if self._service.state == PlaybackState.PLAYING:

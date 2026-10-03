@@ -55,6 +55,7 @@ class DownloadQueue:
                 playlist=playlist.name,
                 quality=quality,
                 output_path=output_dir / f"{singer} - {title}.mp3",
+                picimg=track.picimg or "",
             )
             self._items.append(item)
         self._save_queue()
@@ -70,6 +71,7 @@ class DownloadQueue:
             playlist=playlist.name,
             quality=quality,
             output_path=output_dir / f"{singer} - {title}.mp3",
+            picimg=track.picimg or "",
         )
         self._items.append(item)
         self._save_queue()
@@ -180,7 +182,7 @@ class DownloadQueue:
                 "progress": i.progress,
                 "downloaded_bytes": i.downloaded_bytes,
                 "total_bytes": i.total_bytes,
-                "error": i.error,
+                "picimg": i.picimg,
                 "retry_count": i.retry_count,
             }
             for i in self._items
@@ -206,6 +208,7 @@ class DownloadQueue:
                     total_bytes=i.get("total_bytes", 0),
                     error=i.get("error"),
                     retry_count=i.get("retry_count", 0),
+                    picimg=i.get("picimg", ""),
                 )
                 for i in data
             ]

@@ -58,11 +58,11 @@ class PlaybackService:
         self._progress = 0.0
         self._duration = 0.0
 
-        # Callbacks
-        self._on_state_change: Callable[[PlaybackState], None] | None = None
-        self._on_progress_change: Callable[[float, float], None] | None = None  # progress, duration
-        self._on_track_change: Callable[[QueueItem | None], None] | None = None
-        self._on_error: Callable[[str], None] | None = None
+        # Callbacks - support multiple listeners
+        self._on_state_change: list[Callable[[PlaybackState], None]] = []
+        self._on_progress_change: list[Callable[[float, float], None]] = []
+        self._on_track_change: list[Callable[[QueueItem | None], None]] = []
+        self._on_error: list[Callable[[str], None]] = []
 
         # Audio player
         self._audio: fta.Audio | None = None
@@ -100,16 +100,16 @@ class PlaybackService:
             self._current_item = self._playlist[0]
         else:
             self._current_item = None
-        if self._on_track_change:
-            self._on_track_change(self._current_item)
+        for cb in self._on_track_change:
+            cb(self._current_item)
 
     def add_to_playlist(self, item: QueueItem) -> None:
         """Add item to playlist."""
         self._playlist.append(item)
         if self._current_item is None:
             self._current_item = item
-            if self._on_track_change:
-                self._on_track_change(item)
+            for cb in self._on_track_change:
+                cb(item)
 
     def play(self) -> None:
         """Start or resume playback."""
@@ -117,8 +117,8 @@ class PlaybackService:
             return
         if self._current_item is None and self._playlist:
             self._current_item = self._playlist[0]
-            if self._on_track_change:
-                self._on_track_change(self._current_item)
+            for cb in self._on_track_change:
+                cb(self._current_item)
         if self._current_item is None:
             return
 
@@ -127,14 +127,14 @@ class PlaybackService:
             audio = self._audio
             if audio:
                 self._state = PlaybackState.PLAYING
-                if self._on_state_change:
-                    self._on_state_change(self._state)
+                for cb in self._on_state_change:
+                    cb(self._state)
                 self._page.run_task(audio.resume)
                 return
 
         self._state = PlaybackState.PLAYING
-        if self._on_state_change:
-            self._on_state_change(self._state)
+        for cb in self._on_state_change:
+            cb(self._state)
         if self._state == PlaybackState.PLAYING:
             self._start_playback_task()
 
@@ -143,8 +143,8 @@ class PlaybackService:
         if self._state != PlaybackState.PLAYING:
             return
         self._state = PlaybackState.PAUSED
-        if self._on_state_change:
-            self._on_state_change(self._state)
+        for cb in self._on_state_change:
+            cb(self._state)
         audio = self._audio
         if audio:
             self._page.run_task(audio.pause)
@@ -152,8 +152,8 @@ class PlaybackService:
     def stop(self) -> None:
         """Stop playback."""
         self._state = PlaybackState.STOPPED
-        if self._on_state_change:
-            self._on_state_change(self._state)
+        for cb in self._on_state_change:
+            cb(self._state)
         # Capture audio reference before setting to None
         audio = self._audio
         self._audio = None
@@ -163,10 +163,10 @@ class PlaybackService:
         self._current_item = None
         self._progress = 0.0
         self._duration = 0.0
-        if self._on_progress_change:
-            self._on_progress_change(0.0, 0.0)
-        if self._on_track_change:
-            self._on_track_change(None)
+        for cb in self._on_progress_change:
+            cb(0.0, 0.0)
+        for cb in self._on_track_change:
+            cb(None)
 
     def next_track(self) -> None:
         """Play next track."""
@@ -180,17 +180,17 @@ class PlaybackService:
         # Play new first item
         if self._playlist:
             self._current_item = self._playlist[0]
-            if self._on_track_change:
-                self._on_track_change(self._current_item)
+            for cb in self._on_track_change:
+                cb(self._current_item)
             if self._state == PlaybackState.PLAYING:
                 self._start_playback_task()
         else:
             self._current_item = None
             self._state = PlaybackState.ENDED
-            if self._on_state_change:
-                self._on_state_change(self._state)
-            if self._on_track_change:
-                self._on_track_change(None)
+            for cb in self._on_state_change:
+                cb(self._state)
+            for cb in self._on_track_change:
+                cb(None)
 
     def previous_track(self) -> None:
         """Play previous track."""
@@ -202,8 +202,8 @@ class PlaybackService:
         # Pop last item from history
         self._current_item = self._history.pop()
         self._playlist.insert(0, self._current_item)
-        if self._on_track_change:
-            self._on_track_change(self._current_item)
+        for cb in self._on_track_change:
+            cb(self._current_item)
         if self._state == PlaybackState.PLAYING:
             self._start_playback_task()
 
@@ -211,8 +211,8 @@ class PlaybackService:
         """Seek to position (0.0 to 1.0)."""
         self._seeking = True
         self._progress = max(0.0, min(1.0, position))
-        if self._on_progress_change:
-            self._on_progress_change(self._progress, self._duration)
+        for cb in self._on_progress_change:
+            cb(self._progress, self._duration)
         audio = self._audio
         if audio and self._duration > 0:
             target_ms = int(self._duration * position * 1000)
@@ -236,8 +236,8 @@ class PlaybackService:
             item = self._current_item
             try:
                 self._state = PlaybackState.BUFFERING
-                if self._on_state_change:
-                    self._on_state_change(self._state)
+                for cb in self._on_state_change:
+                    cb(self._state)
 
                 # Download to temp file
                 temp_path = await self._download_to_temp(item)
@@ -248,8 +248,8 @@ class PlaybackService:
                 # Get actual duration
                 self._duration = await self._get_audio_duration(temp_path)
                 self._progress = 0.0
-                if self._on_progress_change:
-                    self._on_progress_change(0.0, self._duration)
+                for cb in self._on_progress_change:
+                    cb(0.0, self._duration)
 
                 # Play the audio file
                 await self._play_audio_file(temp_path)
@@ -278,15 +278,16 @@ class PlaybackService:
 
                 if not self._playlist:
                     self._state = PlaybackState.ENDED
-                    if self._on_state_change:
-                        self._on_state_change(self._state)
+                    for cb in self._on_state_change:
+                        cb(self._state)
                     self._current_item = None
-                    if self._on_track_change:
-                        self._on_track_change(None)
+                    for cb in self._on_track_change:
+                        cb(None)
                     break
 
                 self._current_item = self._playlist[0]
-                if self._on_track_change:
+                for cb in self._on_track_change:
+                    cb(self._current_item)
                     self._on_track_change(self._current_item)
 
             except asyncio.CancelledError:
@@ -343,10 +344,14 @@ class PlaybackService:
 
     async def _play_audio_file(self, file_path: Path) -> None:
         """Play audio file using flet-audio."""
+        if not file_path.exists():
+            raise RuntimeError(f"Audio file not found: {file_path}")
         try:
+            # Convert to file:// URL for flet-audio
+            src = file_path.as_uri()
             # Create audio control
             self._audio = fta.Audio(
-                src=str(file_path),
+                src=src,
                 autoplay=True,
                 volume=1.0,
                 balance=0.0,
@@ -374,8 +379,8 @@ class PlaybackService:
                     break
                 await asyncio.sleep(0.5)
         except MusicDLException as e:
-            if self._on_error:
-                self._on_error(f"Playback error: {e}")
+            for cb in self._on_error:
+                cb(f"Playback error: {e}")
         finally:
             audio = self._audio
             self._audio = None
@@ -405,8 +410,8 @@ class PlaybackService:
         duration = self._to_seconds(duration)
         if duration > self._duration:
             self._duration = duration
-            if self._on_progress_change:
-                self._on_progress_change(self._progress, self._duration)
+            for cb in self._on_progress_change:
+                cb(self._progress, self._duration)
 
     def _on_position_change(self, position) -> None:
         """Handle position change event from flet-audio."""
@@ -414,8 +419,8 @@ class PlaybackService:
             return
         position = self._to_seconds(position)
         self._progress = position / self._duration if self._duration > 0 else 0.0
-        if self._on_progress_change:
-            self._on_progress_change(self._progress, self._duration)
+        for cb in self._on_progress_change:
+            cb(self._progress, self._duration)
 
     def _on_flet_audio_state_change(self, state) -> None:
         """Handle state change event from flet-audio (converts fta.AudioState to our PlaybackState)."""
@@ -431,8 +436,8 @@ class PlaybackService:
         else:
             # Unknown state, default to STOPPED
             self._state = PlaybackState.STOPPED
-        if self._on_state_change:
-            self._on_state_change(self._state)
+        for cb in self._on_state_change:
+            cb(self._state)
 
     async def _download_to_temp(self, item: QueueItem) -> Path:
         """Download song to temp file."""
@@ -471,14 +476,30 @@ class PlaybackService:
                 original=e,
             ) from e
 
-    def set_on_state_change(self, callback: Callable[[PlaybackState], None]) -> None:
-        self._on_state_change = callback
+    def add_on_state_change(self, callback: Callable[[PlaybackState], None]) -> None:
+        self._on_state_change.append(callback)
 
-    def set_on_progress_change(self, callback: Callable[[float, float], None]) -> None:
-        self._on_progress_change = callback
+    def add_on_progress_change(self, callback: Callable[[float, float], None]) -> None:
+        self._on_progress_change.append(callback)
 
-    def set_on_track_change(self, callback: Callable[[QueueItem | None], None]) -> None:
-        self._on_track_change = callback
+    def add_on_track_change(self, callback: Callable[[QueueItem | None], None]) -> None:
+        self._on_track_change.append(callback)
 
-    def set_on_error(self, callback: Callable[[str], None]) -> None:
-        self._on_error = callback
+    def add_on_error(self, callback: Callable[[str], None]) -> None:
+        self._on_error.append(callback)
+
+    def remove_on_state_change(self, callback: Callable[[PlaybackState], None]) -> None:
+        if callback in self._on_state_change:
+            self._on_state_change.remove(callback)
+
+    def remove_on_progress_change(self, callback: Callable[[float, float], None]) -> None:
+        if callback in self._on_progress_change:
+            self._on_progress_change.remove(callback)
+
+    def remove_on_track_change(self, callback: Callable[[QueueItem | None], None]) -> None:
+        if callback in self._on_track_change:
+            self._on_track_change.remove(callback)
+
+    def remove_on_error(self, callback: Callable[[str], None]) -> None:
+        if callback in self._on_error:
+            self._on_error.remove(callback)

@@ -151,6 +151,7 @@ class SongDownloaderTab(ft.Column):
                 playlist="",
                 quality=self.quality_dropdown.value,
                 output_path=Path(""),
+                picimg=self._song_info.picimg or "",
             )
             self._playback_service.set_playlist([item])
             self._playback_service.play()
@@ -179,6 +180,7 @@ class SongDownloaderTab(ft.Column):
             playlist="",
             quality=quality,
             output_path=output_dir / f"{singer} - {title}.mp3",
+            picimg=self._song_info.picimg or "",
         )
         self._queue.add_item(item)
         self._queue.start()
