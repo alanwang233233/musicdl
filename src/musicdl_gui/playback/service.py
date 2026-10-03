@@ -120,12 +120,14 @@ class PlaybackService:
             return
 
         # Resume from pause if audio exists
-        if self._state == PlaybackState.PAUSED and self._audio:
-            self._state = PlaybackState.PLAYING
-            if self._on_state_change:
-                self._on_state_change(self._state)
-            self._page.run_task(self._audio.resume)
-            return
+        if self._state == PlaybackState.PAUSED:
+            audio = self._audio
+            if audio:
+                self._state = PlaybackState.PLAYING
+                if self._on_state_change:
+                    self._on_state_change(self._state)
+                self._page.run_task(audio.resume)
+                return
 
         self._state = PlaybackState.PLAYING
         if self._on_state_change:
@@ -140,18 +142,21 @@ class PlaybackService:
         self._state = PlaybackState.PAUSED
         if self._on_state_change:
             self._on_state_change(self._state)
-        if self._audio:
-            self._page.run_task(self._audio.pause)
+        audio = self._audio
+        if audio:
+            self._page.run_task(audio.pause)
 
     def stop(self) -> None:
         """Stop playback."""
         self._state = PlaybackState.STOPPED
         if self._on_state_change:
             self._on_state_change(self._state)
-        if self._audio:
-            self._page.run_task(self._audio.pause)
-            self._page.run_task(self._audio.release)
-            self._audio = None
+        # Capture audio reference before setting to None
+        audio = self._audio
+        self._audio = None
+        if audio:
+            self._page.run_task(audio.pause)
+            self._page.run_task(audio.release)
         self._current_item = None
         self._progress = 0.0
         self._duration = 0.0
@@ -204,9 +209,10 @@ class PlaybackService:
         self._progress = max(0.0, min(1.0, position))
         if self._on_progress_change:
             self._on_progress_change(self._progress, self._duration)
-        if self._audio and self._duration > 0:
+        audio = self._audio
+        if audio and self._duration > 0:
             target_ms = int(self._duration * position * 1000)
-            self._page.run_task(self._audio.seek, target_ms)
+            self._page.run_task(audio.seek, target_ms)
 
     def _start_playback_task(self) -> None:
         if self._current_item:
@@ -362,17 +368,21 @@ class PlaybackService:
                 # Exit if stopped or ended
                 if self._state in (PlaybackState.STOPPED, PlaybackState.ENDED):
                     break
+                # Check audio still exists before sleep
+                if not self._audio:
+                    break
                 await asyncio.sleep(0.5)
         except (RuntimeError, ValueError, OSError) as e:
             if self._on_error:
                 self._on_error(f"Playback error: {e}")
         finally:
-            if self._audio:
+            audio = self._audio
+            self._audio = None
+            if audio:
                 try:
-                    await self._audio.release()
+                    await audio.release()
                 except (RuntimeError, ValueError, OSError):
                     pass
-                self._audio = None
 
     def _to_seconds(self, duration) -> float:
         """Convert flet Duration to seconds."""
