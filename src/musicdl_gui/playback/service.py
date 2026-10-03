@@ -64,6 +64,7 @@ class PlaybackService:
 
         # Audio player
         self._audio: fta.Audio | None = None
+        self._seeking = False
 
     @property
     def mode(self) -> PlaybackMode:
@@ -206,6 +207,7 @@ class PlaybackService:
 
     def seek(self, position: float) -> None:
         """Seek to position (0.0 to 1.0)."""
+        self._seeking = True
         self._progress = max(0.0, min(1.0, position))
         if self._on_progress_change:
             self._on_progress_change(self._progress, self._duration)
@@ -354,7 +356,7 @@ class PlaybackService:
                 on_duration_change=lambda e: self._on_duration_change(e.duration if hasattr(e, 'duration') else 0),
                 on_position_change=lambda e: self._on_position_change(e.position if hasattr(e, 'position') else 0),
                 on_state_change=lambda e: self._on_flet_audio_state_change(e.state if hasattr(e, 'state') else fta.AudioState.STOPPED),
-                on_seek_complete=lambda _: None,
+                on_seek_complete=lambda _: setattr(self, '_seeking', False),
             )
             # Add to page services
             self._page.services.append(self._audio)
@@ -409,6 +411,8 @@ class PlaybackService:
 
     def _on_position_change(self, position) -> None:
         """Handle position change event from flet-audio."""
+        if self._seeking:
+            return
         position = self._to_seconds(position)
         self._progress = position / self._duration if self._duration > 0 else 0.0
         if self._on_progress_change:
