@@ -59,7 +59,7 @@ class ErrorLogTab(ft.Column):
     async def _on_export(self, e):
         file_picker = ft.FilePicker()
         self.page.services.append(file_picker)
-        path = await file_picker.save_file_async()
+        path = await file_picker.save_file()
         if path:
             self._error_log.export(Path(path))
             await self._show_snack(f"Exported to {path}")
