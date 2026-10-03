@@ -1,5 +1,6 @@
 """Track list component with right-click context menu."""
 
+import inspect
 from collections.abc import Callable
 
 import flet as ft
@@ -19,13 +20,22 @@ class TrackList(ft.ListView):
             spacing=2,
             padding=8,
         )
-        self._on_download = on_download
-        self._on_play = on_play
+        self._on_download_cb = on_download
+        self._on_play_cb = on_play
 
         self.controls = [
             self._create_track_tile(track, index)
             for index, track in enumerate(tracks)
         ]
+
+    def _run_callback(self, callback: Callable | None, track: PlaylistTrack) -> None:
+        """Invoke a callback, scheduling it on the page loop when it is async."""
+        if callback is None or self.page is None:
+            return
+        if inspect.iscoroutinefunction(callback):
+            self.page.run_task(callback, track)
+        else:
+            callback(track)
 
     def _create_track_tile(self, track: PlaylistTrack, index: int) -> ft.Container:
         """Create a track tile with context menu."""
@@ -39,7 +49,7 @@ class TrackList(ft.ListView):
                     ],
                     spacing=8,
                 ),
-                on_click=lambda e, t=track: self._page.run_task(self._on_play, t),
+                on_click=lambda e, t=track: self._run_callback(self._on_play_cb, t),
             ),
             ft.PopupMenuItem(
                 content=ft.Row(
@@ -49,7 +59,7 @@ class TrackList(ft.ListView):
                     ],
                     spacing=8,
                 ),
-                on_click=lambda e, t=track: self._on_download(t),
+                on_click=lambda e, t=track: self._run_callback(self._on_download_cb, t),
             ),
             ft.PopupMenuItem(
                 content=ft.Row(
@@ -82,14 +92,6 @@ class TrackList(ft.ListView):
             padding=ft.Padding(0, 0, 8, 0),
             expand=True,
         )
-
-    def _on_download(self, track: PlaylistTrack) -> None:
-        if self._on_download:
-            self._on_download(track)
-
-    async def _on_play(self, track: PlaylistTrack) -> None:
-        if self._on_play:
-            await self._on_play(track)
 
     def _on_add_to_queue(self, track: PlaylistTrack) -> None:
         # Could add to download queue
