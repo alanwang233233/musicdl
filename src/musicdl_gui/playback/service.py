@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import subprocess
 from collections.abc import Callable
 from enum import Enum
 from pathlib import Path
@@ -319,7 +320,6 @@ class PlaybackService:
 
     async def _get_audio_duration(self, file_path: Path) -> float:
         """Get audio duration using ffprobe."""
-        import subprocess
         try:
             result = await asyncio.to_thread(
                 subprocess.run,
