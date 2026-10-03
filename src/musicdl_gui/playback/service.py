@@ -68,6 +68,7 @@ class PlaybackService:
         # Audio player
         self._audio: fta.Audio | None = None
         self._seeking = False
+        self._playback_task: asyncio.Task | None = None
 
     @property
     def mode(self) -> PlaybackMode:
@@ -230,7 +231,10 @@ class PlaybackService:
 
     def _start_playback_task(self) -> None:
         if self._current_item:
-            asyncio.create_task(self._playback_loop())
+            # Cancel existing task if any
+            if self._playback_task is not None and not self._playback_task.done():
+                self._playback_task.cancel()
+            self._playback_task = asyncio.create_task(self._playback_loop())
 
     async def _playback_loop(self) -> None:
         """Main playback loop - downloads to temp and plays via flet-audio."""
