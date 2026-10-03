@@ -107,24 +107,22 @@ class PlaylistBrowserTab(ft.Column):
         ]
         self.content_area.update()
 
-    def _on_track_download(self, track):
+    async def _on_track_download(self, track):
         """Download a single track from the playlist."""
+        if not self._current_playlist:
+            await self._show_snack("No playlist loaded")
+            return
         config = self._config_mgr.load()
         output_dir = Path(config.get("output_dir", "./music"))
         self._queue.add_playlist_single_track(self._current_playlist, track, config.get("default_level", "standard"), output_dir)
         self._queue.start()
-        self._show_snack(f"Downloading: {track.singer} - {track.name}")
+        await self._show_snack(f"Downloading: {track.singer} - {track.name}")
 
-    def _on_track_play(self, track):
+    async def _on_track_play(self, track):
         """Play a single track from the playlist."""
         # This would need access to playback service
         # For now, add to queue and play
-        self._show_snack(f"Play: {track.singer} - {track.name}")
-
-    async def _show_snack(self, message: str) -> None:
-        snack = ft.SnackBar(content=ft.Text(message), open=True)
-        self.page.overlay.append(snack)
-        self.page.update()
+        await self._show_snack(f"Play: {track.singer} - {track.name}")
 
     async def _on_download_all(self):
         if self._current_playlist:
@@ -134,5 +132,5 @@ class PlaylistBrowserTab(ft.Column):
             self._queue.start()
             await self._show_snack("Added to download queue")
 
-    def _on_add_to_queue(self):
-        self._on_download_all()
+    async def _on_add_to_queue(self):
+        await self._on_download_all()
