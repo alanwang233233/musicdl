@@ -91,6 +91,7 @@ def main(page: ft.Page) -> None:
 
     # Create fullscreen dialog
     playback_dialog = PlaybackDialog(
+        page=page,
         playback_service=playback_service,
         on_mode_change=lambda mode: setattr(playback_service, "mode", mode),
     )

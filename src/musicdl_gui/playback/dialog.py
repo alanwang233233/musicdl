@@ -8,7 +8,8 @@ from musicdl_gui.playback.service import PlaybackMode, PlaybackState
 class PlaybackDialog(ft.AlertDialog):
     """Fullscreen playback dialog with progress drag."""
 
-    def __init__(self, playback_service, on_mode_change) -> None:
+    def __init__(self, page: ft.Page, playback_service, on_mode_change) -> None:
+        self._page = page
         self._service = playback_service
         self._on_mode_change = on_mode_change
 
@@ -213,12 +214,10 @@ class PlaybackDialog(ft.AlertDialog):
         self._service.mode = next_mode
 
     def _close(self) -> None:
-        self.open = False
-        self.update()
+        self._page.pop_dialog()
 
     def show(self) -> None:
-        self.open = True
-        self.update()
+        self._page.show_dialog(self)
 
     @staticmethod
     def _format_time(seconds: float) -> str:
