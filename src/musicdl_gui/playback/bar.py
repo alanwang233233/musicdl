@@ -140,6 +140,7 @@ class PlaybackBar(ft.Container):
         self._service.add_on_track_change(self._on_track_change)
         self._service.add_on_state_change(self._on_state_change)
         self._service.add_on_progress_change(self._on_progress_change)
+        self._service.add_on_mode_change(self._on_mode_change)
 
     def _on_play_pause(self, e) -> None:
         if self._service.state == PlaybackState.PLAYING:
@@ -186,6 +187,16 @@ class PlaybackBar(ft.Container):
         self.progress_slider.update()
         self.current_time_text.update()
         self.duration_text.update()
+
+    def _on_mode_change(self, mode: PlaybackMode) -> None:
+        """Update mode button tooltip when mode changes."""
+        mode_names = {
+            PlaybackMode.SEQUENTIAL: "Sequential",
+            PlaybackMode.SINGLE_LOOP: "Single Loop",
+            PlaybackMode.RANDOM: "Random",
+        }
+        self.mode_button.tooltip = f"Playback Mode: {mode_names.get(mode, 'Unknown')}"
+        self.mode_button.update()
 
     @staticmethod
     def _format_time(seconds: float) -> str:

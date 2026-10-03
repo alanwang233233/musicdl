@@ -4,12 +4,13 @@ from pathlib import Path
 
 import flet as ft
 
-from musicdl import MusicDLException
+from musicdl import MusicDLException, PlaybackService
 from musicdl_gui.api import ApiClient
 from musicdl_gui.components.playlist_card import PlaylistCard
 from musicdl_gui.components.track_list import TrackList
 from musicdl_gui.config import ConfigManager
 from musicdl_gui.error_log import ErrorLog
+from musicdl_gui.models import QueueItem
 from musicdl_gui.queue import DownloadQueue
 
 
@@ -19,11 +20,13 @@ class PlaylistBrowserTab(ft.Column):
         config_mgr: ConfigManager,
         download_queue: DownloadQueue,
         error_log: ErrorLog,
+        playback_service: PlaybackService,
     ):
         super().__init__(expand=True, spacing=16)
         self._config_mgr = config_mgr
         self._queue = download_queue
         self._error_log = error_log
+        self._playback_service = playback_service
         self._api: ApiClient | None = None
         self._current_playlist = None
 
@@ -121,9 +124,24 @@ class PlaylistBrowserTab(ft.Column):
 
     async def _on_track_play(self, track):
         """Play a single track from the playlist."""
-        # This would need access to playback service
-        # For now, add to queue and play
-        await self._show_snack(f"Play: {track.singer} - {track.name}")
+        if not self._current_playlist:
+            await self._show_snack("No playlist loaded")
+            return
+        config = self._config_mgr.load()
+        output_dir = Path(config.get("output_dir", "./music"))
+        item = QueueItem(
+            song_id=track.id,
+            title=track.name,
+            singer=track.singer,
+            playlist=self._current_playlist.name,
+            quality=config.get("default_level", "standard"),
+            output_path=output_dir / f"{track.singer} - {track.name}.mp3",
+            picimg=track.picimg or "",
+        )
+        # Add to playback service and play
+        self._playback_service.set_playlist([item])
+        self._playback_service.play()
+        await self._show_snack(f"Playing: {track.singer} - {track.name}")
 
     async def _on_download_all(self):
         if self._current_playlist:

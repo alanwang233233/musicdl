@@ -39,7 +39,7 @@ class TrackList(ft.ListView):
                     ],
                     spacing=8,
                 ),
-                on_click=lambda e, t=track: self._on_play(t),
+                on_click=lambda e, t=track: self._page.run_task(self._on_play, t),
             ),
             ft.PopupMenuItem(
                 content=ft.Row(
@@ -87,9 +87,9 @@ class TrackList(ft.ListView):
         if self._on_download:
             self._on_download(track)
 
-    def _on_play(self, track: PlaylistTrack) -> None:
+    async def _on_play(self, track: PlaylistTrack) -> None:
         if self._on_play:
-            self._on_play(track)
+            await self._on_play(track)
 
     def _on_add_to_queue(self, track: PlaylistTrack) -> None:
         # Could add to download queue

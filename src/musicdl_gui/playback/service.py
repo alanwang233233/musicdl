@@ -63,6 +63,7 @@ class PlaybackService:
         self._on_progress_change: list[Callable[[float, float], None]] = []
         self._on_track_change: list[Callable[[QueueItem | None], None]] = []
         self._on_error: list[Callable[[str], None]] = []
+        self._on_mode_change: list[Callable[[PlaybackMode], None]] = []
 
         # Audio player
         self._audio: fta.Audio | None = None
@@ -74,7 +75,10 @@ class PlaybackService:
 
     @mode.setter
     def mode(self, value: PlaybackMode) -> None:
-        self._mode = value
+        if self._mode != value:
+            self._mode = value
+            for cb in self._on_mode_change:
+                cb(value)
 
     @property
     def state(self) -> PlaybackState:
@@ -503,3 +507,10 @@ class PlaybackService:
     def remove_on_error(self, callback: Callable[[str], None]) -> None:
         if callback in self._on_error:
             self._on_error.remove(callback)
+
+    def add_on_mode_change(self, callback: Callable[[PlaybackMode], None]) -> None:
+        self._on_mode_change.append(callback)
+
+    def remove_on_mode_change(self, callback: Callable[[PlaybackMode], None]) -> None:
+        if callback in self._on_mode_change:
+            self._on_mode_change.remove(callback)

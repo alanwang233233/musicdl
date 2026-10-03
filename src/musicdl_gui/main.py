@@ -34,6 +34,15 @@ def main(page: ft.Page) -> None:
     download_queue.clear_all()
     temp_manager.initialize()
 
+    # Initialize playback service first (needed by tabs)
+    playback_service = PlaybackService(
+        queue=download_queue,
+        config_manager=config_mgr,
+        temp_manager=temp_manager,
+        api_client=api_client,  # Will be set when first needed
+        page=page,
+    )
+
     from musicdl_gui.tabs.download_queue import DownloadQueueTab
     from musicdl_gui.tabs.error_log import ErrorLogTab
     from musicdl_gui.tabs.playlist_browser import PlaylistBrowserTab
@@ -59,7 +68,7 @@ def main(page: ft.Page) -> None:
                 ft.TabBarView(
                     expand=True,
                     controls=[
-                        PlaylistBrowserTab(config_mgr, download_queue, error_log),
+                        PlaylistBrowserTab(config_mgr, download_queue, error_log, playback_service),
                         song_tab := SongDownloaderTab(config_mgr, download_queue, error_log),
                         DownloadQueueTab(download_queue, error_log),
                         SettingsTab(config_mgr),
@@ -68,15 +77,6 @@ def main(page: ft.Page) -> None:
                 ),
             ],
         ),
-    )
-
-    # Initialize playback service
-    playback_service = PlaybackService(
-        queue=download_queue,
-        config_manager=config_mgr,
-        temp_manager=temp_manager,
-        api_client=api_client,  # Will be set when first needed
-        page=page,
     )
 
     # Set playback service on song tab
