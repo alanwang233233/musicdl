@@ -54,6 +54,7 @@ class ErrorLog:
             return
         self._entries: list[ErrorLogEntry] = []
         self._callbacks: list[Callable[[ErrorLogEntry], None]] = []
+        self._lock = threading.Lock()
         self._setup_file_handler()
         self._setup_exception_hook()
         self._initialized = True
@@ -102,22 +103,33 @@ class ErrorLog:
         self._add_entry(entry)
 
     def _add_entry(self, entry: ErrorLogEntry) -> None:
-        self._entries.append(entry)
-        if len(self._entries) > MAX_ENTRIES:
-            self._entries = self._entries[-MAX_ENTRIES:]
+        with self._lock:
+            self._entries.append(entry)
+            if len(self._entries) > MAX_ENTRIES:
+                self._entries = self._entries[-MAX_ENTRIES:]
+            callbacks = list(self._callbacks)
+
         self._logger.log(getattr(logging, entry.level), f"[{entry.source}] {entry.message}")
-        for callback in self._callbacks:
-            callback(entry)
+        for callback in callbacks:
+            try:
+                callback(entry)
+            except BaseException:  # noqa: BLE001, S110 - intentionally catch all to prevent callback failures from affecting other callbacks
+                pass
 
     def get_entries(self, limit: int = 100) -> list[ErrorLogEntry]:
-        return self._entries[-limit:]
+        with self._lock:
+            return self._entries[-limit:]
 
     def clear(self) -> None:
-        self._entries.clear()
+        with self._lock:
+            self._entries.clear()
 
     def export(self, path: Path) -> None:
+        with self._lock:
+            entries = list(self._entries)
         with open(path, "w", encoding="utf-8") as f:
-            f.writelines(json.dumps(asdict(entry), ensure_ascii=False) + "\n" for entry in self._entries)
+            f.writelines(json.dumps(asdict(entry), ensure_ascii=False) + "\n" for entry in entries)
 
     def register_callback(self, callback: Callable[[ErrorLogEntry], None]) -> None:
-        self._callbacks.append(callback)
+        with self._lock:
+            self._callbacks.append(callback)
