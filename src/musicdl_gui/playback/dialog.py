@@ -85,10 +85,6 @@ class PlaybackDialog(ft.AlertDialog):
             tooltip="Close",
         )
 
-        # Progress time
-        self.current_time = ft.Text("0:00", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
-        self.duration_text = ft.Text("0:00", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
-
         super().__init__(
             modal=True,
             content=ft.Container(
