@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
 from musicdl import (
@@ -38,7 +38,7 @@ class ApiClient:
             self._song_service = SongService(self._client)
         return self._client
 
-    async def _with_retry(self, func: Callable[[], T], *, max_retries: int = 3, base_delay: float = 0.5) -> T:
+    async def _with_retry(self, func: Callable[[], Awaitable[T]], *, max_retries: int = 3, base_delay: float = 0.5) -> T:
         """Execute function with exponential backoff retry."""
         last_exception: Exception | None = None
         for attempt in range(max_retries + 1):
