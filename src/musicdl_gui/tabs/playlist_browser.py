@@ -4,13 +4,14 @@ from pathlib import Path
 
 import flet as ft
 
-from musicdl import MusicDLException, PlaybackService
+from musicdl import MusicDLException
 from musicdl_gui.api import ApiClient
 from musicdl_gui.components.playlist_card import PlaylistCard
 from musicdl_gui.components.track_list import TrackList
 from musicdl_gui.config import ConfigManager
 from musicdl_gui.error_log import ErrorLog
 from musicdl_gui.models import QueueItem
+from musicdl_gui.playback import PlaybackService
 from musicdl_gui.queue import DownloadQueue
 
 
