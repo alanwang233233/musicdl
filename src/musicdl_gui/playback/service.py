@@ -11,6 +11,7 @@ from pathlib import Path
 
 import flet_audio as fta
 
+from musicdl import MusicDLException
 from musicdl_gui.api import ApiClient
 from musicdl_gui.config import ConfigManager
 from musicdl_gui.models import QueueItem
@@ -292,7 +293,7 @@ class PlaybackService:
 
             except asyncio.CancelledError:
                 break
-            except (RuntimeError, ValueError, OSError) as e:
+            except MusicDLException as e:
                 if self._on_error:
                     self._on_error(str(e))
                 # Try next track
@@ -374,7 +375,7 @@ class PlaybackService:
                 if not self._audio:
                     break
                 await asyncio.sleep(0.5)
-        except (RuntimeError, ValueError, OSError) as e:
+        except MusicDLException as e:
             if self._on_error:
                 self._on_error(f"Playback error: {e}")
         finally:
@@ -383,7 +384,7 @@ class PlaybackService:
             if audio:
                 try:
                     await audio.release()
-                except (RuntimeError, ValueError, OSError):
+                except MusicDLException:
                     pass
 
     def _to_seconds(self, duration) -> float:
@@ -462,7 +463,7 @@ class PlaybackService:
                     output=temp_path,
                 )
             return temp_path
-        except (RuntimeError, ValueError, OSError):
+        except MusicDLException:
             return None
 
     def set_on_state_change(self, callback: Callable[[PlaybackState], None]) -> None:

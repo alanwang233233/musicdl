@@ -4,6 +4,7 @@ from pathlib import Path
 
 import flet as ft
 
+from musicdl import MusicDLException
 from musicdl_gui.api import ApiClient
 from musicdl_gui.config import ConfigManager
 from musicdl_gui.error_log import ErrorLog
@@ -112,7 +113,7 @@ class SongDownloaderTab(ft.Column):
             self.download_button.update()
             self.play_button.disabled = False
             self.play_button.update()
-        except (RuntimeError, ValueError, OSError) as exc:
+        except MusicDLException as exc:
             self._error_log.log_exception(exc, "song_downloader", {"song_id": song_id})
             await self._show_snack(f"Error: {exc}")
         finally:
@@ -154,7 +155,7 @@ class SongDownloaderTab(ft.Column):
             self._playback_service.set_playlist([item])
             self._playback_service.play()
             await self._show_snack("Playing...")
-        except (RuntimeError, ValueError, OSError) as exc:
+        except MusicDLException as exc:
             self._error_log.log_exception(exc, "song_downloader", {"song_id": self._song_info.id})
             await self._show_snack(f"Error: {exc}")
         finally:

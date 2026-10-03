@@ -4,6 +4,7 @@ from pathlib import Path
 
 import flet as ft
 
+from musicdl import MusicDLException
 from musicdl_gui.api import ApiClient
 from musicdl_gui.components.playlist_card import PlaylistCard
 from musicdl_gui.components.track_list import TrackList
@@ -71,7 +72,7 @@ class PlaylistBrowserTab(ft.Column):
             playlist = await self._api.fetch_playlist(playlist_id)
             self._current_playlist = playlist
             self._update_content(playlist)
-        except (RuntimeError, ValueError, OSError) as exc:
+        except MusicDLException as exc:
             self._error_log.log_exception(exc, "playlist_browser", {"playlist_id": playlist_id})
             await self._show_snack(f"Error: {exc}")
         finally:
