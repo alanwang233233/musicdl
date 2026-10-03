@@ -241,8 +241,6 @@ class PlaybackService:
 
                 # Download to temp file
                 temp_path = await self._download_to_temp(item)
-                if not temp_path or not temp_path.exists():
-                    raise RuntimeError("Failed to download to temp file")
 
                 self._temp_manager.register_file(temp_path)
                 self._temp_manager.get_file_size(temp_path)
@@ -436,9 +434,10 @@ class PlaybackService:
         if self._on_state_change:
             self._on_state_change(self._state)
 
-    async def _download_to_temp(self, item: QueueItem) -> Path | None:
+    async def _download_to_temp(self, item: QueueItem) -> Path:
         """Download song to temp file."""
         from musicdl import (
+            DownloadError,
             DownloadService,
             PlaylistService,
             SongService,
@@ -463,8 +462,14 @@ class PlaybackService:
                     output=temp_path,
                 )
             return temp_path
-        except MusicDLException:
-            return None
+        except MusicDLException as e:
+            # Wrap as DownloadError with context for proper handling upstream
+            raise DownloadError(
+                f"Failed to download song {item.song_id} to temp: {e}",
+                song_id=item.song_id,
+                output_path=temp_path,
+                original=e,
+            ) from e
 
     def set_on_state_change(self, callback: Callable[[PlaybackState], None]) -> None:
         self._on_state_change = callback
