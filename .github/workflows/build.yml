@@ -1,10 +1,6 @@
 name: Build
 
 on:
-  push:
-    branches: [master, main]
-    tags: ["v*"]
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -41,8 +37,8 @@ jobs:
         include:
           - { os: ubuntu-22.04, artifact: musicdl-cli-linux-x64 }
           - { os: windows-2022, artifact: musicdl-cli-windows-x64 }
-          # macos-14 为 Apple Silicon; x64 产物请在本机 make cli(cli-x64 需 Intel 构建机)
-          - { os: macos-14, artifact: musicdl-cli-macos-arm64 }
+          - { os: macos-26-intel, artifact: musicdl-cli-macos-intel }
+          - { os: macos-15, artifact: musicdl-cli-macos-arm64 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -54,7 +50,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ".[cli]" pyinstaller
+          python -m pip install -e .
+          python -m pip install -e ".[cli]" pyinstaller
 
       - name: Build CLI
         run: python -m PyInstaller musicdl_cli.spec --noconfirm --clean
@@ -71,7 +68,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-14, target: macos, artifact: musicdl-gui-macos-arm64 }
+          - { os: macos-15, target: macos, artifact: musicdl-gui-macos-arm64 }
+          - { os: macos-26-intel, target: macos-intel, artifact: musicdl-gui-macos-intel }
           - { os: windows-2022, target: windows, artifact: musicdl-gui-windows-x64 }
           - { os: ubuntu-22.04, target: linux, artifact: musicdl-gui-linux-x64 }
     runs-on: ${{ matrix.os }}
@@ -118,11 +116,21 @@ jobs:
         if: matrix.target == 'linux'
         run: flet build linux --no-rich-output -o dist/gui-linux
 
+      - name: Build GUI (macOS Intel)
+        if: matrix.target == 'macos-intel'
+        run: flet build macos --no-rich-output -o dist/gui-macos-intel
+
       - name: Package artifact (macOS)
         if: matrix.target == 'macos'
         run: |
           cd dist/gui-macos
           zip -r ../musicdl-gui-macos.zip *.app
+
+      - name: Package artifact (macOS Intel)
+        if: matrix.target == 'macos-intel'
+        run: |
+          cd dist/gui-macos-intel
+          zip -r ../musicdl-gui-macos-intel.zip *.app
 
       - name: Package artifact (Windows)
         if: matrix.target == 'windows'
