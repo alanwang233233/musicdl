@@ -1,10 +1,12 @@
+import asyncio
+
 import pytest
 import responses
-from pathlib import Path
-from musicdl import MusicDLConfig, Playlist, PlaylistCreator, PlaylistTrack
+
+from musicdl import Playlist, PlaylistCreator, PlaylistTrack
 from musicdl_gui.config import ConfigManager
+from musicdl_gui.models import QueueStatus
 from musicdl_gui.queue import DownloadQueue
-from musicdl_gui.models import QueueItem, QueueStatus
 
 
 @pytest.fixture
@@ -44,7 +46,7 @@ def mock_playlist():
 
 
 @responses.activate
-def test_full_download_flow(tmp_path, mock_playlist, monkeypatch):
+async def test_full_download_flow(tmp_path, mock_playlist, monkeypatch):
     monkeypatch.setattr("musicdl_gui.config.CONFIG_DIR", tmp_path)
     monkeypatch.setattr("musicdl_gui.queue.DEFAULT_QUEUE_FILE", tmp_path / "queue.json")
 
@@ -147,3 +149,25 @@ def test_full_download_flow(tmp_path, mock_playlist, monkeypatch):
 
     assert len(queue.get_items()) == 2
     assert all(i.status == QueueStatus.PENDING for i in queue.get_items())
+
+    # 真正执行下载:轮询等待队列处理完成(下载运行在 to_thread 线程中)
+    queue.start()
+    for _ in range(200):
+        await asyncio.sleep(0.05)
+        statuses = [i.status for i in queue.get_items()]
+        if all(s in (QueueStatus.COMPLETED, QueueStatus.FAILED) for s in statuses):
+            break
+
+    items = queue.get_items()
+    statuses = [i.status for i in items]
+    assert all(s == QueueStatus.COMPLETED for s in statuses), statuses
+    assert all(i.error is None for i in items)
+
+    # 文件确实落盘且非空
+    out1 = tmp_path / "music" / "Singer 1 - Song 1.mp3"
+    out2 = tmp_path / "music" / "Singer 2 - Song 2.mp3"
+    assert out1.exists() and out1.stat().st_size > 0
+    assert out2.exists() and out2.stat().st_size > 0
+
+    # mock 的 API 端点被真实消费(getSongUrl + 音频流,每首歌一次)
+    assert len(responses.calls) >= 4

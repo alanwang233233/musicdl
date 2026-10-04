@@ -1,4 +1,4 @@
-from musicdl_gui.models import QueueItem, QueueStatus, LogLevel
+from musicdl_gui.models import LogLevel, QueueItem, QueueStatus
 
 
 def test_queue_item_creation():

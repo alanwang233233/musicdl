@@ -4,23 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from collections.abc import Callable
 from pathlib import Path
 
 from musicdl import DownloadService, Playlist, PlaylistService, SongService
+from musicdl.filename import sanitize_filename as _sanitize_filename
+from musicdl_gui.config import atomic_write_json
 from musicdl_gui.error_log import ErrorLog
 from musicdl_gui.models import QueueItem, QueueStatus
 
 DEFAULT_QUEUE_FILE = Path.home() / ".config" / "musicdl-gui" / "queue.json"
-
-_ILLEGAL_CHARS = re.compile(r'[\\:*?"<>|\x00-\x1f]')
-
-
-def _sanitize_filename(value: str) -> str:
-    """Replace characters that are illegal in file names with ``_``,
-    but replace ``/`` with ``;`` to preserve readability."""
-    return _ILLEGAL_CHARS.sub("_", value.replace("/", ";")).strip()
 
 
 class DownloadQueue:
@@ -76,8 +69,16 @@ class DownloadQueue:
         self._items.append(item)
         self._save_queue()
 
-    def remove_item(self, song_id: int) -> None:
-        self._items = [i for i in self._items if i.song_id != song_id]
+    def remove_item(self, target: QueueItem | int) -> None:
+        """Remove an item by identity, or every entry with a song_id (int).
+
+        Identity-based removal keeps duplicate song entries independent:
+        removing one row no longer deletes another entry of the same song.
+        """
+        if isinstance(target, QueueItem):
+            self._items = [i for i in self._items if i is not target]
+        else:
+            self._items = [i for i in self._items if i.song_id != target]
         self._save_queue()
 
     def clear_completed(self) -> None:
@@ -89,6 +90,8 @@ class DownloadQueue:
 
     def clear_all(self) -> None:
         """Clear all items and remove the queue file."""
+        # 先停掉处理器,避免进行中的条目在完成后把已清空的队列写回
+        self.stop()
         self._items.clear()
         if self._queue_file.exists():
             self._queue_file.unlink()
@@ -149,6 +152,12 @@ class DownloadQueue:
                 item.status = QueueStatus.COMPLETED
                 item.progress = 1.0
                 self._notify_complete(item)
+            except asyncio.CancelledError:
+                # stop() 取消任务时,把中断的条目复位为 PENDING 以便下次续跑
+                if item.status == QueueStatus.DOWNLOADING and item in self._items:
+                    item.status = QueueStatus.PENDING
+                    self._save_queue()
+                raise
             except Exception as e:  # noqa: BLE001
                 item.status = QueueStatus.FAILED
                 item.error = str(e)
@@ -182,36 +191,48 @@ class DownloadQueue:
                 "progress": i.progress,
                 "downloaded_bytes": i.downloaded_bytes,
                 "total_bytes": i.total_bytes,
+                "error": i.error,
                 "picimg": i.picimg,
                 "retry_count": i.retry_count,
             }
             for i in self._items
         ]
-        with open(self._queue_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        atomic_write_json(self._queue_file, data)
 
     def _load_queue(self) -> None:
-        if self._queue_file.exists():
+        if not self._queue_file.exists():
+            return
+        try:
             with open(self._queue_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            self._items = [
-                QueueItem(
-                    song_id=i["song_id"],
-                    title=i["title"],
-                    singer=i["singer"],
-                    playlist=i["playlist"],
-                    quality=i["quality"],
-                    output_path=Path(i["output_path"]),
-                    status=QueueStatus(i["status"]),
-                    progress=i.get("progress", 0.0),
-                    downloaded_bytes=i.get("downloaded_bytes", 0),
-                    total_bytes=i.get("total_bytes", 0),
-                    error=i.get("error"),
-                    retry_count=i.get("retry_count", 0),
-                    picimg=i.get("picimg", ""),
+        except (json.JSONDecodeError, OSError):
+            # 损坏的队列文件:挪到 .bak 后从空队列开始,不让应用启动崩溃
+            self._queue_file.replace(self._queue_file.with_suffix(".json.bak"))
+            return
+        items: list[QueueItem] = []
+        for i in data:
+            try:
+                items.append(
+                    QueueItem(
+                        song_id=i["song_id"],
+                        title=i["title"],
+                        singer=i["singer"],
+                        playlist=i["playlist"],
+                        quality=i["quality"],
+                        output_path=Path(i["output_path"]),
+                        status=QueueStatus(i["status"]),
+                        progress=i.get("progress", 0.0),
+                        downloaded_bytes=i.get("downloaded_bytes", 0),
+                        total_bytes=i.get("total_bytes", 0),
+                        error=i.get("error"),
+                        retry_count=i.get("retry_count", 0),
+                        picimg=i.get("picimg", ""),
+                    )
                 )
-                for i in data
-            ]
+            except (KeyError, ValueError):
+                # 跳过单条坏数据,不因一条记录丢失整个队列
+                continue
+        self._items = items
 
     def _notify_progress(self, item: QueueItem) -> None:
         if self._on_progress:

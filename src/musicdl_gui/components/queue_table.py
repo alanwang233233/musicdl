@@ -14,6 +14,9 @@ class QueueRow(ft.Container):
         self.on_retry = on_retry
         self.on_remove = on_remove
         self.index = index
+        # 最近一次渲染的取值快照:queue.get_items() 返回同一批可变对象,
+        # 变更检测必须与"已渲染的快照"比较,不能拿对象和自身比较(永远相等)
+        self._snapshot: tuple | None = None
 
         self.padding = ft.Padding(12, 8, 12, 8)
         self.border = ft.Border(
@@ -23,6 +26,16 @@ class QueueRow(ft.Container):
             left=ft.BorderSide(0, ft.Colors.TRANSPARENT),
         )
         self.content = self._build_content()
+
+    def _display_state(self) -> tuple:
+        """Values that determine the rendered row content."""
+        return (
+            self.item.status,
+            self.item.progress,
+            self.item.downloaded_bytes,
+            self.item.total_bytes,
+            self.index,
+        )
 
     def _build_content(self) -> ft.Row:
         status_colors = {
@@ -80,11 +93,11 @@ class QueueRow(ft.Container):
                 icon=ft.Icons.DELETE_OUTLINE,
                 tooltip="Remove",
                 icon_size=16,
-                on_click=lambda e: self.on_remove(self.item.song_id),
+                on_click=lambda e: self.on_remove(self.item),
             )
         )
 
-        return ft.Row(
+        row = ft.Row(
             spacing=8,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
             controls=[
@@ -99,6 +112,8 @@ class QueueRow(ft.Container):
                 actions,
             ],
         )
+        self._snapshot = self._display_state()
+        return row
 
     def _format_speed_eta(self) -> str:
         if self.item.total_bytes > 0 and self.item.downloaded_bytes > 0:
@@ -116,6 +131,9 @@ class QueueRow(ft.Container):
         """Update row with new item data in place."""
         self.item = item
         self.index = index
+        if self._display_state() == self._snapshot:
+            # 渲染所需取值与当前显示一致,跳过重建
+            return
         self.content = self._build_content()
         # Don't call self.update() here - let parent ListView handle it
 
@@ -137,22 +155,24 @@ class QueueTable(ft.ListView):
 
     def update_items(self, items: list[QueueItem]):
         """Update items efficiently - only rebuild changed rows."""
-        # Build new order
-        new_order = [item.song_id for item in items]
-        
+        # 以对象身份 id(item) 为键:同一首歌重复入队时仍是两个独立条目
+        new_order = [id(item) for item in items]
+        self._item_order = new_order
+
         # Update or create rows
         for index, item in enumerate(items):
-            if item.song_id in self._rows:
-                self._rows[item.song_id].update_item(item, index + 1)
+            key = id(item)
+            if key in self._rows:
+                self._rows[key].update_item(item, index + 1)
             else:
                 row = QueueRow(item, self.on_retry, self.on_remove, index + 1)
-                self._rows[item.song_id] = row
+                self._rows[key] = row
                 self.controls.append(row)
-        
+
         # Remove rows for items no longer in list
-        for song_id in list(self._rows.keys()):
-            if song_id not in new_order:
-                row = self._rows.pop(song_id)
+        for key in list(self._rows.keys()):
+            if key not in new_order:
+                row = self._rows.pop(key)
                 self.controls.remove(row)
         
         # Reorder controls to match item order

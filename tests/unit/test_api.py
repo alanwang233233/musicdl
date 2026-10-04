@@ -1,8 +1,9 @@
+
 import pytest
 import responses
-import asyncio
+
 from musicdl import MusicDLConfig
-from musicdl.exceptions import NetworkError, APIError
+from musicdl.exceptions import APIError, NetworkError
 from musicdl_gui.api import ApiClient
 
 

@@ -84,8 +84,9 @@ class DownloadQueueTab(ft.Column):
         self._queue.start()
         self._refresh_table()
 
-    def _on_remove(self, song_id: int):
-        self._queue.remove_item(song_id)
+    def _on_remove(self, item):
+        # 传条目对象本身:同一首歌重复入队时,删除一条不应误删另一条
+        self._queue.remove_item(item)
         self._refresh_table()
 
     def _on_clear(self, e):
@@ -126,7 +127,11 @@ class DownloadQueueTab(ft.Column):
         """Periodic refresh loop."""
         while True:
             await asyncio.sleep(0.5)
-            self._refresh_table()
+            try:
+                self._refresh_table()
+            except Exception:  # noqa: BLE001, S110 - keep the poll loop alive after teardown
+                # 页面关闭后 update 可能抛错,保持轮询任务存活
+                pass
 
     def did_mount(self):
         self._refresh_table()

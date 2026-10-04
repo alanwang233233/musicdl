@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from musicdl import MusicDLConfig
@@ -10,6 +11,14 @@ CONFIG_DIR = Path.home() / ".config" / "musicdl-gui"
 
 def _config_file() -> Path:
     return CONFIG_DIR / "config.json"
+
+
+def atomic_write_json(path: Path, data) -> None:
+    """Write JSON atomically: dump to a tmp file, then os.replace over the target."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, path)
 
 DEFAULT_CONFIG = {
     "base_url": "https://nextmusic.toubiec.cn",
@@ -33,18 +42,21 @@ class ConfigManager:
     def load(self) -> dict:
         config_file = _config_file()
         if config_file.exists():
-            with open(config_file, "r", encoding="utf-8") as f:
-                saved = json.load(f)
-            self._config = {**DEFAULT_CONFIG, **saved}
+            try:
+                with open(config_file, "r", encoding="utf-8") as f:
+                    saved = json.load(f)
+                self._config = {**DEFAULT_CONFIG, **saved}
+            except (json.JSONDecodeError, OSError):
+                # Corrupted config: keep it aside as .bak and fall back to defaults.
+                os.replace(config_file, config_file.with_suffix(config_file.suffix + ".bak"))
+                self._config = DEFAULT_CONFIG.copy()
         else:
             self._config = DEFAULT_CONFIG.copy()
         return self._config
 
     def save(self, config: dict) -> None:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        config_file = _config_file()
-        with open(config_file, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2, ensure_ascii=False)
+        atomic_write_json(_config_file(), config)
         self._config = config
 
     def get_config(self) -> MusicDLConfig:

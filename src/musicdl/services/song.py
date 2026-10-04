@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from musicdl.api import endpoints
 from musicdl.client import SyncMusicClient
+from musicdl.exceptions import ValidationError
 from musicdl.models import QualityLevel, SongInfo, SongUrl
 
 
@@ -31,7 +32,10 @@ class SongService:
             APIError / NetworkError / ValidationError: Propagated from the client.
         """
         body = self.client.post_json(endpoints.GET_SONG_INFO, {"id": str(song_id)})
-        return SongInfo.model_validate(body["data"])
+        data = body.get("data")
+        if data is None:
+            raise ValidationError(f"response from {endpoints.GET_SONG_INFO} is missing 'data'")
+        return SongInfo.model_validate(data)
 
     def get_url(self, song_id: str | int, *, level: QualityLevel | str | None = None) -> SongUrl:
         """Fetch a signed MP3 playback URL for a song.
@@ -53,4 +57,7 @@ class SongService:
             endpoints.GET_SONG_URL,
             {"id": str(song_id), "level": level_value},
         )
-        return SongUrl.model_validate(body["data"])
+        data = body.get("data")
+        if data is None:
+            raise ValidationError(f"response from {endpoints.GET_SONG_URL} is missing 'data'")
+        return SongUrl.model_validate(data)

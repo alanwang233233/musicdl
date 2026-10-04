@@ -6,6 +6,7 @@ import flet as ft
 
 from musicdl_gui.components.error_log_table import ErrorLogTable
 from musicdl_gui.error_log import ErrorLog
+from musicdl_gui.snack import show_snack
 
 
 class ErrorLogTab(ft.Column):
@@ -38,7 +39,12 @@ class ErrorLogTab(ft.Column):
 
     def did_mount(self):
         self._refresh()
-        self._error_log.register_callback(self._on_new_entry)
+        self._error_log_cb = self._on_new_entry
+        self._error_log.register_callback(self._error_log_cb)
+
+    def will_unmount(self):
+        # 注销回调,避免重挂载后重复刷新
+        self._error_log.unregister_callback(self._error_log_cb)
 
     def _on_new_entry(self, entry):
         self._refresh()
@@ -48,9 +54,7 @@ class ErrorLogTab(ft.Column):
         self._table.update_entries(entries)
 
     async def _show_snack(self, message: str) -> None:
-        snack = ft.SnackBar(content=ft.Text(message), open=True)
-        self.page.overlay.append(snack)
-        self.page.update()
+        show_snack(self.page, message)
 
     def _on_clear(self, e):
         self._error_log.clear()

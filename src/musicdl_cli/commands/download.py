@@ -18,10 +18,12 @@ from musicdl import (
     DownloadService,
     MusicDLConfig,
     PlaylistService,
+    QualityLevel,
     SongService,
     SyncMusicClient,
 )
 from musicdl.exceptions import APIError, DownloadError
+from musicdl.filename import sanitize_filename as _sanitize_filename
 from musicdl_cli.ui.output import console, print_playlist_info, print_track_list
 from musicdl_cli.utils.retry import download_with_retry
 
@@ -47,36 +49,26 @@ def _create_client_and_downloader(
     return client, downloader
 
 
-def _sanitize_filename(name: str) -> str:
-    """Replace characters that are illegal in file names with ';'."""
-    return name.replace("/", ";")
-
-
-def _get_target_path(output_dir: Path, singer: str, title: str, song_service: SongService, track_id: int, quality: str) -> Path:
-    """Get the target path with correct extension from the song URL."""
-    url_info = song_service.get_url(track_id, level=quality)
-    if not url_info.url:
-        raise APIError(code=404, message="Song URL is null/unavailable")
-    parsed = urllib.parse.urlparse(url_info.url)
-    ext = Path(parsed.path).suffix or ".mp3"
-    safe_singer = _sanitize_filename(singer)
-    safe_title = _sanitize_filename(title)
-    return output_dir / f"{safe_singer} - {safe_title}{ext}"
-
-
-def _check_existing(output_dir: Path, singer: str, title: str) -> Path | None:
-    """Check if file already exists (any extension)."""
-    safe_singer = _sanitize_filename(singer)
-    safe_title = _sanitize_filename(title)
-    existing = list(output_dir.glob(f"{safe_singer} - {safe_title}.*"))
-    return existing[0] if existing else None
+def _print_summary(paths: list[Path], skipped: list[Path], failed: list[tuple]) -> None:
+    """Print the final download summary (shared by abort and finish paths)."""
+    console.print(f"完成！成功下载 {len(paths)} 首，跳过 {len(skipped)} 首，失败 {len(failed)} 首")
+    for p in paths:
+        console.print(f"  ✓ {p.name}")
+    if skipped:
+        console.print("\n跳过列表:")
+        for p in skipped:
+            console.print(f"  ⊘ {p.name}")
+    if failed:
+        console.print("\n失败列表:")
+        for track_err, err in failed:
+            console.print(f"  ✗ {track_err.singer} - {track_err.name}: {err}")
 
 
 @app.command("song")
 def download_song(
     song_id: str = typer.Argument(..., help="歌曲 ID"),
     output_dir: Path = typer.Option(Path("."), "--output-dir", "-o", help="输出目录"),
-    quality: str = typer.Option("standard", "--quality", "-q", help="音质: standard/hires/lossless"),
+    quality: QualityLevel = typer.Option(QualityLevel.STANDARD, "--quality", "-q", case_sensitive=False, help="音质: standard/hires/lossless"),
     ip: str | None = typer.Option(None, "--ip", help="客户端 IP（默认自动获取）"),
     max_retries: int = typer.Option(10, "--max-retries", help="最大重试次数"),
     retry_wait: float = typer.Option(10.0, "--retry-wait", help="重试等待秒数"),
@@ -110,7 +102,7 @@ def download_song(
             )
             progress.update(task, completed=1)
             console.print(f"  [green]✓ 已下载:[/green] {path}")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - report any download failure to the user
             progress.update(task, description=f"[red]✗ 失败: {exc}[/red]")
             console.print(f"  [red]✗ 下载失败:[/red] {exc}")
             raise typer.Exit(code=1)
@@ -120,14 +112,14 @@ def download_song(
 def download_playlist(
     playlist_id: str = typer.Argument(..., help="歌单 ID"),
     output_dir: Path = typer.Option(Path("."), "--output-dir", "-o", help="输出目录"),
-    quality: str = typer.Option("standard", "--quality", "-q", help="音质: standard/hires/lossless"),
+    quality: QualityLevel = typer.Option(QualityLevel.STANDARD, "--quality", "-q", case_sensitive=False, help="音质: standard/hires/lossless"),
     ip: str | None = typer.Option(None, "--ip", help="客户端 IP（默认自动获取）"),
     max_retries: int = typer.Option(10, "--max-retries", help="最大重试次数"),
     retry_wait: float = typer.Option(10.0, "--retry-wait", help="重试等待秒数"),
     skip_existing: bool = typer.Option(True, "--skip-existing/--no-skip-existing", help="跳过已存在的文件"),
     skip_failed: bool = typer.Option(False, "--skip-failed", help="跳过失败的歌曲继续下载"),
 ) -> None:
-    """下载歌单中的全部歌曲（与 download_playlist_249180720.py 行为一致）。"""
+    """下载歌单中的全部歌曲。"""
     output_dir.mkdir(parents=True, exist_ok=True)
 
     config = MusicDLConfig(ip=ip, default_level=quality)
@@ -162,28 +154,25 @@ def download_playlist(
             safe_singer = _sanitize_filename(track.singer)
             safe_name = _sanitize_filename(track.name)
 
-            # Check if already exists (any extension)
-            existing = _check_existing(output_dir, safe_singer, safe_name)
-            if existing and skip_existing:
-                console.print(f"\n[{i}/{len(playlist.songs)}] {track.singer} - {track.name}")
-                console.print(f"  ⊘ 已存在，跳过: {existing.name}")
-                skipped.append(existing)
-                continue
-
             console.print(f"\n[{i}/{len(playlist.songs)}] {track.singer} - {track.name}")
 
-            def _download_one_track() -> tuple[Path, bool]:
+            def _download_one_track(track=track, safe_singer=safe_singer, safe_name=safe_name) -> tuple[Path, bool]:
                 """Returns (path, was_skipped)."""
-                # Get target path with correct extension
-                target_path = _get_target_path(output_dir, safe_singer, safe_name, song_service, track.id, quality)
-
-                if target_path.exists() and skip_existing:
+                # 只取一次 URL(此前每首歌调两次 getSongUrl);按真实扩展名精确
+                # 判断已存在,弃用 glob(歌名含 [ ] ? * 时会误判导致静默丢歌)
+                url_info = song_service.get_url(track.id, level=quality)
+                if not url_info.url:
+                    raise APIError(code=404, message="Song URL is null/unavailable")
+                parsed = urllib.parse.urlparse(url_info.url)
+                ext = Path(parsed.path).suffix or ".mp3"
+                target_path = output_dir / f"{safe_singer} - {safe_name}{ext}"
+                if skip_existing and target_path.exists():
                     return target_path, True
-
                 return downloader.download_song(
                     track.id,
                     level=quality,
                     output=target_path,
+                    url_info=url_info,
                 ), False
 
             def _on_retry(attempt: int, reason: str) -> None:
@@ -205,7 +194,7 @@ def download_playlist(
                 else:
                     paths.append(path)
                     console.print(f"  ✓ 已下载: {path.name}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - per-track failure is reported, not fatal
                 failed.append((track, e))
                 console.print(f"  ✗ 失败: {e}")
                 if e.__cause__:
@@ -214,31 +203,11 @@ def download_playlist(
                     console.print(f"     上下文: {e.__context__}")
                 if not skip_failed:
                     console.print(f"\n{'='*50}")
-                    console.print(f"完成！成功下载 {len(paths)} 首，跳过 {len(skipped)} 首，失败 {len(failed)} 首")
-                    for p in paths:
-                        console.print(f"  ✓ {p.name}")
-                    if skipped:
-                        console.print("\n跳过列表:")
-                        for p in skipped:
-                            console.print(f"  ⊘ {p.name}")
-                    if failed:
-                        console.print("\n失败列表:")
-                        for track_err, err in failed:
-                            console.print(f"  ✗ {track_err.singer} - {track_err.name}: {err}")
+                    _print_summary(paths, skipped, failed)
                     raise typer.Exit(code=1)
 
         console.print(f"\n{'='*50}")
-        console.print(f"完成！成功下载 {len(paths)} 首，跳过 {len(skipped)} 首，失败 {len(failed)} 首")
-        for p in paths:
-            console.print(f"  ✓ {p.name}")
-        if skipped:
-            console.print("\n跳过列表:")
-            for p in skipped:
-                console.print(f"  ⊘ {p.name}")
-        if failed:
-            console.print("\n失败列表:")
-            for track_err, err in failed:
-                console.print(f"  ✗ {track_err.singer} - {track_err.name}: {err}")
+        _print_summary(paths, skipped, failed)
 
         if failed and not skip_failed:
             raise typer.Exit(code=1)

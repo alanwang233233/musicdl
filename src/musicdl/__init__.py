@@ -19,6 +19,7 @@ from musicdl.exceptions import (
     NetworkError,
     ValidationError,
 )
+from musicdl.filename import sanitize_filename
 from musicdl.models import (
     CookieInfo,
     CopyrightType,
@@ -55,4 +56,5 @@ __all__ = [
     "SyncMusicClient",
     "ValidationError",
     "__version__",
+    "sanitize_filename",
 ]

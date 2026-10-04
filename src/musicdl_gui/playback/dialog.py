@@ -11,7 +11,10 @@ class PlaybackDialog(ft.AlertDialog):
     def __init__(self, page: ft.Page, playback_service, on_mode_change) -> None:
         self._page = page
         self._service = playback_service
-        self._on_mode_change = on_mode_change
+        # 存为 _cb 后缀属性,避免遮蔽下方同名的方法(否则模式提示更新成为死代码)
+        self._on_mode_change_cb = on_mode_change
+        # 用户正在拖动进度条:期间忽略服务的进度回写,避免滑条来回打架
+        self._scrubbing = False
 
         # Album art / cover
         self.cover_image = ft.Image(
@@ -65,15 +68,15 @@ class PlaybackDialog(ft.AlertDialog):
             items=[
                 ft.PopupMenuItem(
                     content=ft.Text("Sequential"),
-                    on_click=lambda e: self._on_mode_change(PlaybackMode.SEQUENTIAL),
+                    on_click=lambda e: self._on_mode_change_cb(PlaybackMode.SEQUENTIAL),
                 ),
                 ft.PopupMenuItem(
                     content=ft.Text("Single Loop"),
-                    on_click=lambda e: self._on_mode_change(PlaybackMode.SINGLE_LOOP),
+                    on_click=lambda e: self._on_mode_change_cb(PlaybackMode.SINGLE_LOOP),
                 ),
                 ft.PopupMenuItem(
                     content=ft.Text("Random"),
-                    on_click=lambda e: self._on_mode_change(PlaybackMode.RANDOM),
+                    on_click=lambda e: self._on_mode_change_cb(PlaybackMode.RANDOM),
                 ),
             ],
         )
@@ -166,6 +169,7 @@ class PlaybackDialog(ft.AlertDialog):
             self._service.play()
 
     def _on_slider_change(self, e) -> None:
+        self._scrubbing = True
         progress = e.control.value / 100
         duration = self._service.duration
         current = progress * duration
@@ -173,28 +177,30 @@ class PlaybackDialog(ft.AlertDialog):
         self.current_time.update()
 
     def _on_progress_change_end(self, e) -> None:
+        self._scrubbing = False
         progress = e.control.value / 100
         self._service.seek(progress)
 
     def _on_track_change(self, item) -> None:
+        # 对话框未打开时子控件未挂载到页面,update() 会抛 RuntimeError;
+        # 打开时由 show() 统一从服务同步最新状态
+        if not self.open:
+            return
         if item:
             self.title_text.value = item.title
             self.artist_text.value = item.singer
             # Load cover image from item's picimg
-            if item.picimg:
-                self.cover_image.src = item.picimg
-            else:
-                self.cover_image.src = ""
-            self.cover_image.update()
+            self.cover_image.src = item.picimg or ""
         else:
             self.title_text.value = ""
             self.artist_text.value = ""
             self.cover_image.src = ""
-            self.cover_image.update()
-        self.title_text.update()
-        self.artist_text.update()
+        # 单次父级 update 批量同步,避免多补丁造成卡顿
+        self.update()
 
     def _on_state_change(self, state: PlaybackState) -> None:
+        if not self.open:
+            return
         if state == PlaybackState.PLAYING:
             self.play_pause_button.icon = ft.Icons.PAUSE
         else:
@@ -202,12 +208,15 @@ class PlaybackDialog(ft.AlertDialog):
         self.play_pause_button.update()
 
     def _on_service_progress_change(self, progress: float, duration: float) -> None:
+        if not self.open:
+            return
+        if self._scrubbing:
+            return  # 拖动期间不回写,避免与拖拽位置互相打架
         self.progress_slider.value = progress * 100
         self.current_time.value = self._format_time(progress * duration)
         self.duration_text.value = self._format_time(duration)
-        self.progress_slider.update()
-        self.current_time.update()
-        self.duration_text.update()
+        # 单次父级 update 批量同步三个控件,避免每个事件发多个补丁造成卡顿
+        self.update()
 
     def _cycle_mode(self) -> None:
         modes = [PlaybackMode.SEQUENTIAL, PlaybackMode.SINGLE_LOOP, PlaybackMode.RANDOM]
@@ -217,7 +226,8 @@ class PlaybackDialog(ft.AlertDialog):
         self._service.mode = next_mode
 
     def _on_mode_change(self, mode: PlaybackMode) -> None:
-        """Update mode button tooltip when mode changes."""
+        if not self.open:
+            return
         mode_names = {
             PlaybackMode.SEQUENTIAL: "Sequential",
             PlaybackMode.SINGLE_LOOP: "Single Loop",
@@ -230,7 +240,36 @@ class PlaybackDialog(ft.AlertDialog):
         self._page.pop_dialog()
 
     def show(self) -> None:
+        if self.open:
+            return
+        # 打开前先用当前播放状态同步一遍(关闭期间的服务回调都被跳过了)
+        self._sync_from_service()
         self._page.show_dialog(self)
+
+    def _sync_from_service(self) -> None:
+        """Mirror current playback state onto the dialog controls (no update calls)."""
+        item = self._service.current_item
+        if item:
+            self.title_text.value = item.title
+            self.artist_text.value = item.singer
+            self.cover_image.src = item.picimg or ""
+        else:
+            self.title_text.value = ""
+            self.artist_text.value = ""
+            self.cover_image.src = ""
+        if self._service.state == PlaybackState.PLAYING:
+            self.play_pause_button.icon = ft.Icons.PAUSE
+        else:
+            self.play_pause_button.icon = ft.Icons.PLAY_ARROW
+        self.progress_slider.value = self._service.progress * 100
+        self.current_time.value = self._format_time(self._service.progress * self._service.duration)
+        self.duration_text.value = self._format_time(self._service.duration)
+        mode_names = {
+            PlaybackMode.SEQUENTIAL: "Sequential",
+            PlaybackMode.SINGLE_LOOP: "Single Loop",
+            PlaybackMode.RANDOM: "Random",
+        }
+        self.mode_button.tooltip = f"Playback Mode: {mode_names.get(self._service.mode, 'Unknown')}"
 
     @staticmethod
     def _format_time(seconds: float) -> str:

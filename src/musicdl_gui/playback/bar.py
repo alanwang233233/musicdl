@@ -15,8 +15,11 @@ class PlaybackBar(ft.Container):
         on_fullscreen_click,
     ) -> None:
         self._service = playback_service
-        self._on_mode_change = on_mode_change
+        # 存为 _cb 后缀属性,避免遮蔽下方同名的方法(否则模式提示更新成为死代码)
+        self._on_mode_change_cb = on_mode_change
         self._on_fullscreen_click = on_fullscreen_click
+        # 用户正在拖动进度条:期间忽略服务的进度回写,避免滑条来回打架
+        self._scrubbing = False
 
         # Playback controls
         self.prev_button = ft.IconButton(
@@ -59,15 +62,15 @@ class PlaybackBar(ft.Container):
             items=[
                 ft.PopupMenuItem(
                     content=ft.Text("Sequential"),
-                    on_click=lambda e: self._on_mode_change(PlaybackMode.SEQUENTIAL),
+                    on_click=lambda e: self._on_mode_change_cb(PlaybackMode.SEQUENTIAL),
                 ),
                 ft.PopupMenuItem(
                     content=ft.Text("Single Loop"),
-                    on_click=lambda e: self._on_mode_change(PlaybackMode.SINGLE_LOOP),
+                    on_click=lambda e: self._on_mode_change_cb(PlaybackMode.SINGLE_LOOP),
                 ),
                 ft.PopupMenuItem(
                     content=ft.Text("Random"),
-                    on_click=lambda e: self._on_mode_change(PlaybackMode.RANDOM),
+                    on_click=lambda e: self._on_mode_change_cb(PlaybackMode.RANDOM),
                 ),
             ],
         )
@@ -150,6 +153,7 @@ class PlaybackBar(ft.Container):
 
     def _on_slider_change(self, e) -> None:
         # Update time display while dragging
+        self._scrubbing = True
         progress = e.control.value / 100
         duration = self._service.duration
         current = progress * duration
@@ -158,6 +162,7 @@ class PlaybackBar(ft.Container):
 
     def _on_progress_change_end(self, e) -> None:
         # Seek to new position
+        self._scrubbing = False
         progress = e.control.value / 100
         self._service.seek(progress)
 
@@ -168,8 +173,8 @@ class PlaybackBar(ft.Container):
         else:
             self.track_title.value = ""
             self.track_artist.value = ""
-        self.track_title.update()
-        self.track_artist.update()
+        # 单次父级 update 批量同步,避免多补丁造成卡顿
+        self.update()
 
     def _on_state_change(self, state: PlaybackState) -> None:
         if state == PlaybackState.PLAYING:
@@ -181,12 +186,13 @@ class PlaybackBar(ft.Container):
         self.play_pause_button.update()
 
     def _on_progress_change(self, progress: float, duration: float) -> None:
+        if self._scrubbing:
+            return  # 拖动期间不回写,避免与拖拽位置互相打架
         self.progress_slider.value = progress * 100
         self.current_time_text.value = self._format_time(progress * duration)
         self.duration_text.value = self._format_time(duration)
-        self.progress_slider.update()
-        self.current_time_text.update()
-        self.duration_text.update()
+        # 单次父级 update 批量同步三个控件,避免每个事件发多个补丁造成卡顿
+        self.update()
 
     def _on_mode_change(self, mode: PlaybackMode) -> None:
         """Update mode button tooltip when mode changes."""

@@ -1,5 +1,3 @@
-import json
-import pytest
 from musicdl_gui.config import ConfigManager
 
 

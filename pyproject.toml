@@ -11,14 +11,17 @@ requires-python = ">=3.10"
 dependencies = [
     "requests>=2.28",
     "pydantic>=2.0",
+    "typing_extensions>=4.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+    "pytest-asyncio>=0.23",
     "pytest-cov>=4.0",
     "responses>=0.24",
     "pyinstaller>=6.0",
+    "build>=1.0",
     "pipx>=1.7",
 ]
 cli = [
@@ -28,18 +31,23 @@ cli = [
 gui = [
     "flet>=1.0.0",
     "flet-audio>=0.1.0",
+    "typeguard>=4.0",
 ]
 
 [project.scripts]
 musicdl = "musicdl_cli.main:app"
-musicdl-gui = "musicdl_gui.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/musicdl", "src/musicdl_cli", "src/musicdl_gui"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --cov=musicdl_gui --cov-report=term-missing"
+addopts = "-q --cov=musicdl --cov=musicdl_gui --cov-report=term-missing"
+asyncio_mode = "auto"
+
+[tool.ruff.lint.per-file-ignores]
+# typer 的标准惯用法即在参数默认值中调用 typer.Option
+"src/musicdl_cli/commands/*.py" = ["B008"]
 
 [tool.coverage.run]
 source = ["musicdl", "musicdl_gui"]
@@ -49,6 +57,19 @@ org = "com.musicdl"
 product = "MusicDL GUI"
 company = "MusicDL"
 copyright = "Copyright (C) 2026 by MusicDL"
+bundle_id = "com.musicdl.gui"
 
 [tool.flet.app]
 path = "src"
+
+# flet build 打包时, 除 [project] dependencies 外还会安装对应平台的依赖;
+# GUI 运行时依赖 (flet / flet-audio / typeguard) 不在 [project] dependencies 中,
+# 在此按平台声明, 避免核心库 wheel 被迫携带 GUI 依赖。
+[tool.flet.macos]
+dependencies = ["flet==1.0.3", "flet-audio==1.0.3", "typeguard>=4.0"]
+
+[tool.flet.windows]
+dependencies = ["flet==1.0.3", "flet-audio==1.0.3", "typeguard>=4.0"]
+
+[tool.flet.linux]
+dependencies = ["flet==1.0.3", "flet-audio==1.0.3", "typeguard>=4.0"]

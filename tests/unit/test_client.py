@@ -10,13 +10,19 @@ import responses
 from musicdl.api import endpoints
 from musicdl.client import SyncMusicClient
 from musicdl.config import MusicDLConfig
-from musicdl.exceptions import APIError, ConfigError, IPFetchError, NetworkError, ValidationError
+from musicdl.exceptions import (
+    APIError,
+    ConfigError,
+    IPFetchError,
+    NetworkError,
+    ValidationError,
+)
 
 BASE = "https://nextmusic.toubiec.cn"
 
 
 def make_client(**overrides) -> SyncMusicClient:
-    defaults = dict(ip="1.2.3.4", max_retries=1, retry_backoff=0.0)
+    defaults = {"ip": "1.2.3.4", "max_retries": 1, "retry_backoff": 0.0}
     defaults.update(overrides)
     return SyncMusicClient(MusicDLConfig(**defaults))
 
@@ -36,15 +42,19 @@ def test_post_json_injects_timestamp_and_ip() -> None:
 
 
 @responses.activate
-def test_auto_fetches_public_ip_and_caches() -> None:
+def test_auto_fetches_public_ip_and_caches(monkeypatch) -> None:
     responses.add(responses.GET, "https://api.ipify.org?format=json", json={"ip": "9.9.9.9"}, status=200)
     responses.add(responses.POST, f"{BASE}{endpoints.GET_SONG_INFO}", json={"code": 200, "data": {}}, status=200)
     client = make_client(ip=None)
+    # 收敛为单端点,排除竞速掉队线程对调用计数的干扰(竞速本身有专属测试)
+    monkeypatch.setattr(client, "_ip_endpoints", lambda: ("https://api.ipify.org?format=json",))
     client.post_json(endpoints.GET_SONG_INFO, {"id": "1"})
+    post_calls = [c for c in responses.calls if c.request.method == "POST"]
+    assert json.loads(post_calls[0].request.body)["ip"] == "9.9.9.9"
+
     client.post_json(endpoints.GET_SONG_INFO, {"id": "2"})
-    ip_calls = [c for c in responses.calls if c.request.method == "GET"]
-    assert len(ip_calls) == 1
-    assert json.loads(responses.calls[1].request.body)["ip"] == "9.9.9.9"
+    # 第二次请求命中缓存:不再发起任何新的 IP 查询
+    assert len([c for c in responses.calls if c.request.method == "GET"]) == 1
 
 
 @responses.activate
@@ -59,7 +69,7 @@ def test_ip_fetch_failure_raises_ip_fetch_error() -> None:
     responses.add(responses.GET, "https://api.ipify.org?format=json", status=500)
     client = make_client(ip=None)
     with pytest.raises(IPFetchError):
-        client.ip
+        _ = client.ip
 
 
 @responses.activate

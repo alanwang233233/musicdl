@@ -10,6 +10,14 @@ from dataclasses import dataclass
 
 from musicdl.models import QualityLevel
 
+# 内置公网 IP 获取端点(JSON 或纯文本格式);获取 IP 时并发竞速,首个合法值胜出
+IP_FETCH_URLS: tuple[str, ...] = (
+    "https://api.ipify.org?format=json",
+    "https://4.ident.me",
+    "https://checkip.amazonaws.com",
+    "https://ipv4.icanhazip.com",
+)
+
 
 @dataclass
 class MusicDLConfig:
@@ -21,9 +29,12 @@ class MusicDLConfig:
         max_retries: Retry count for network errors and HTTP 5xx.
         retry_backoff: Base delay in seconds for exponential backoff.
         ip: Explicit client IP. When ``None`` the public IP is fetched
-            from ``ip_fetch_url`` (cached for ``ip_cache_ttl`` seconds).
-        ip_fetch_url: Endpoint returning ``{"ip": "..."}``. An empty
-            string disables automatic fetching (then ``ip`` is required).
+            by racing ``IP_FETCH_URLS`` concurrently (cached for
+            ``ip_cache_ttl`` seconds); the first valid answer wins.
+        ip_fetch_url: Extra endpoint included in the IP race (JSON
+            ``{"ip": "..."}`` or plain text), in addition to the built-in
+            ``IP_FETCH_URLS``. An empty string disables automatic
+            fetching (then ``ip`` is required).
         ip_cache_ttl: How long an automatically fetched IP stays cached.
         default_level: Default quality level for getSongUrl.
         user_agent: Optional custom User-Agent header.

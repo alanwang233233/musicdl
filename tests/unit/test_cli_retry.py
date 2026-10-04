@@ -4,7 +4,7 @@ from unittest.mock import Mock, call
 
 import pytest
 
-from musicdl.exceptions import APIError, DownloadError, NetworkError
+from musicdl.exceptions import APIError, NetworkError
 from musicdl_cli.utils.retry import download_with_retry
 
 

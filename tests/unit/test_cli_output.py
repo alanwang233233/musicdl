@@ -1,6 +1,6 @@
 """Tests for musicdl_cli Rich output helpers."""
 
-from musicdl.models import Playlist, PlaylistCreator, PlaylistTrack
+from musicdl.models import Playlist, PlaylistTrack
 from musicdl_cli.ui.output import print_playlist_info, print_track_list
 
 

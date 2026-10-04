@@ -14,6 +14,7 @@ class TrackList(ft.ListView):
         tracks: list[PlaylistTrack],
         on_download: Callable,
         on_play: Callable,
+        on_play_next: Callable,
     ) -> None:
         super().__init__(
             expand=True,
@@ -22,6 +23,7 @@ class TrackList(ft.ListView):
         )
         self._on_download_cb = on_download
         self._on_play_cb = on_play
+        self._on_play_next_cb = on_play_next
 
         self.controls = [
             self._create_track_tile(track, index)
@@ -64,12 +66,12 @@ class TrackList(ft.ListView):
             ft.PopupMenuItem(
                 content=ft.Row(
                     controls=[
-                        ft.Icon(ft.Icons.ADD, size=16),
-                        ft.Text("Add to Queue"),
+                        ft.Icon(ft.Icons.PLAYLIST_ADD, size=16),
+                        ft.Text("Play Next"),
                     ],
                     spacing=8,
                 ),
-                on_click=lambda e, t=track: self._on_add_to_queue(t),
+                on_click=lambda e, t=track: self._run_callback(self._on_play_next_cb, t),
             ),
         ]
 
@@ -77,11 +79,13 @@ class TrackList(ft.ListView):
             content=ft.Row(
                 expand=True,
                 controls=[
+                    # ListTile 撑满剩余宽度,把三个点按钮推到行最右侧
                     ft.ListTile(
                         leading=ft.Icon(ft.Icons.MUSIC_NOTE),
                         title=ft.Text(f"{track.singer} - {track.name}"),
                         subtitle=ft.Text(track.duration),
                         dense=True,
+                        expand=True,
                     ),
                     ft.PopupMenuButton(
                         icon=ft.Icons.MORE_VERT,
@@ -92,10 +96,6 @@ class TrackList(ft.ListView):
             padding=ft.Padding(0, 0, 8, 0),
             expand=True,
         )
-
-    def _on_add_to_queue(self, track: PlaylistTrack) -> None:
-        # Could add to download queue
-        pass
 
     def update_tracks(self, tracks: list[PlaylistTrack]) -> None:
         """Update tracks list."""

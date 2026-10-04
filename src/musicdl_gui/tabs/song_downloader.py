@@ -8,9 +8,11 @@ from musicdl import MusicDLException
 from musicdl_gui.api import ApiClient
 from musicdl_gui.config import ConfigManager
 from musicdl_gui.error_log import ErrorLog
+from musicdl_gui.input_utils import extract_id
 from musicdl_gui.models import QueueItem
 from musicdl_gui.playback import PlaybackService, TempFileManager
 from musicdl_gui.queue import DownloadQueue, _sanitize_filename
+from musicdl_gui.snack import show_snack
 
 
 class SongDownloaderTab(ft.Column):
@@ -25,6 +27,7 @@ class SongDownloaderTab(ft.Column):
         self._queue = download_queue
         self._error_log = error_log
         self._api: ApiClient | None = None
+        self._api_config = None
         self._song_info = None
         self._playback_service: PlaybackService | None = None
         self._temp_manager = TempFileManager()
@@ -88,13 +91,19 @@ class SongDownloaderTab(ft.Column):
         self._playback_service = playback_service
 
     async def _show_snack(self, message: str) -> None:
-        snack = ft.SnackBar(content=ft.Text(message), open=True)
-        self.page.overlay.append(snack)
-        self.page.update()
+        show_snack(self.page, message)
 
     async def _on_preview(self, e):
-        song_id = self.id_input.value.strip()
+        # 支持直接输入 ID 或粘贴形如 https://music.xxx.com/xxx?id=2249180720 的链接
+        song_id = extract_id(self.id_input.value)
         if not song_id:
+            return
+
+        # Convert song ID before locking the UI - fail fast on non-numeric input
+        try:
+            numeric_id = int(song_id)
+        except ValueError:
+            await self._show_snack(f"无效的歌曲 ID: {song_id}")
             return
 
         # Lock button during preview
@@ -106,8 +115,12 @@ class SongDownloaderTab(ft.Column):
 
         try:
             config = self._config_mgr.get_config()
-            self._api = ApiClient(config)
-            self._song_info = await self._api.fetch_song_info(int(song_id))
+            if self._api is None or self._api_config != config:
+                if self._api is not None:
+                    self._api.close()
+                self._api = ApiClient(config)
+                self._api_config = config
+            self._song_info = await self._api.fetch_song_info(numeric_id)
             self._update_info_card()
             self.download_button.disabled = False
             self.download_button.update()

@@ -1,0 +1,154 @@
+name: Build
+
+on:
+  push:
+    branches: [master, main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ── 1. 核心库 wheel(跨平台通用, 单次构建) ─────────────────────────────────
+  lib:
+    name: Core library wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel --outdir dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musicdl-wheel
+          path: dist/*.whl
+
+  # ── 2. CLI(PyInstaller 单文件可执行) ──────────────────────────────────────
+  cli:
+    name: CLI (${{ matrix.artifact }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, artifact: musicdl-cli-linux-x64 }
+          - { os: windows-2022, artifact: musicdl-cli-windows-x64 }
+          # macos-14 为 Apple Silicon; x64 产物请在本机 make cli(cli-x64 需 Intel 构建机)
+          - { os: macos-14, artifact: musicdl-cli-macos-arm64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[cli]" pyinstaller
+
+      - name: Build CLI
+        run: python -m PyInstaller musicdl_cli.spec --noconfirm --clean
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/musicdl-cli*
+
+  # ── 3. GUI(flet build 桌面应用) ───────────────────────────────────────────
+  gui:
+    name: GUI (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14, target: macos, artifact: musicdl-gui-macos-arm64 }
+          - { os: windows-2022, target: windows, artifact: musicdl-gui-windows-x64 }
+          - { os: ubuntu-22.04, target: linux, artifact: musicdl-gui-linux-x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Flutter Linux 桌面工具链 + flet_audio 运行时所需 libmpv
+      - name: Install Linux build dependencies
+        if: matrix.target == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev \
+            libmpv-dev mpv
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install flet CLI
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "flet==1.0.3"
+
+      # flet 会把 Flutter SDK 下载到 ~/flutter, 跨次构建可复用
+      - name: Cache Flutter SDK (flet-managed)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/flutter
+            ~/.flet
+          key: flet-1.0.3-flutter-${{ runner.os }}
+
+      - name: Build GUI (macOS)
+        if: matrix.target == 'macos'
+        run: flet build macos --no-rich-output -o dist/gui-macos
+
+      - name: Build GUI (Windows)
+        if: matrix.target == 'windows'
+        run: flet build windows --no-rich-output -o dist/gui-windows
+
+      - name: Build GUI (Linux)
+        if: matrix.target == 'linux'
+        run: flet build linux --no-rich-output -o dist/gui-linux
+
+      - name: Package artifact (macOS)
+        if: matrix.target == 'macos'
+        run: |
+          cd dist/gui-macos
+          zip -r ../musicdl-gui-macos.zip *.app
+
+      - name: Package artifact (Windows)
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/gui-windows/* -DestinationPath dist/musicdl-gui-windows.zip
+
+      - name: Package artifact (Linux)
+        if: matrix.target == 'linux'
+        run: tar -czf dist/musicdl-gui-linux.tar.gz -C dist/gui-linux .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/musicdl-gui-*
+
+  # ── 4. Release(仅 v* tag 触发, 汇总全部产物) ──────────────────────────────
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [lib, cli, gui]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**

@@ -7,3 +7,13 @@ htmlcov/
 .pytest_cache/
 dist/
 build/
+.DS_Store
+.idea/
+.freebuff/
+.omc/
+.zcode/
+typings/
+.mypy_cache/
+.ruff_cache/
+music/
+music1/

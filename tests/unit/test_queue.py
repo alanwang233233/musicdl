@@ -1,9 +1,11 @@
 import asyncio
-import pytest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from musicdl_gui.queue import DownloadQueue
+
+import pytest
+
 from musicdl_gui.models import QueueItem, QueueStatus
+from musicdl_gui.queue import DownloadQueue
 
 
 @pytest.fixture
@@ -226,6 +228,28 @@ def test_save_and_load_queue(tmp_path):
     assert loaded[0].retry_count == 0
 
 
+def test_save_and_load_failed_item_keeps_error(tmp_path):
+    """FAILED 条目的失败原因必须能跨会话保留(此前 _save_queue 丢弃 error 字段)。"""
+    queue_file = tmp_path / "queue.json"
+    queue = DownloadQueue(queue_file=queue_file)
+    item = QueueItem(
+        song_id=2,
+        title="Broken",
+        singer="Singer",
+        playlist="Playlist",
+        quality="standard",
+        output_path=Path("/tmp/broken.mp3"),
+        status=QueueStatus.FAILED,
+        error="boom: connection reset",
+    )
+    queue.add_item(item)
+    queue2 = DownloadQueue(queue_file=queue_file)
+    loaded = queue2.get_items()
+    assert len(loaded) == 1
+    assert loaded[0].status == QueueStatus.FAILED
+    assert loaded[0].error == "boom: connection reset"
+
+
 def test_callbacks(queue):
     events = []
     def on_progress(item):
@@ -305,10 +329,9 @@ async def test_process_queue_success(tmp_path, monkeypatch):
         "default_level": "standard",
     })
 
-    from musicdl import SyncMusicClient, SongService, PlaylistService
     from musicdl.services.download import DownloadService
 
-    original_download = DownloadService.download_song
+    _original_download = DownloadService.download_song
     call_count = {"count": 0}
 
     def mock_download(self, song_id, level, output):

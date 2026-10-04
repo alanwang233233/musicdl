@@ -9,6 +9,8 @@ class QualityLevel(str, Enum):
     """Audio quality levels accepted by the getSongUrl endpoint."""
 
     STANDARD = "standard"
+    HIRES = "hires"
+    LOSSLESS = "lossless"
 
 
 class CopyrightType(int, Enum):

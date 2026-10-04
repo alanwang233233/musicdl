@@ -99,8 +99,9 @@ def test_illegal_characters_sanitized(tmp_path: Path) -> None:
     svc = make_song_service(make_song_info(singer="AC/DC", name='a:b*c?"d'))
     downloader = DownloadService(svc, output_dir=tmp_path)
     result = downloader.download_song(1)
+    # "/" 统一替换为 ";"(与 GUI 队列一致),其余非法字符替换为 "_"
     assert "/" not in result.name and ":" not in result.name
-    assert result.name == "AC_DC - a_b_c__d.mp3"
+    assert result.name == "AC;DC - a_b_c__d.mp3"
 
 
 @responses.activate

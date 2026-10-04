@@ -4,25 +4,21 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 from collections.abc import Callable
 from pathlib import Path
 
 import requests
 
 from musicdl.exceptions import ConfigError, DownloadError, MusicDLException
-from musicdl.models import Playlist, QualityLevel, SongInfo
+from musicdl.filename import sanitize_filename, sanitize_path_segments
+from musicdl.models import Playlist, QualityLevel, SongInfo, SongUrl
 from musicdl.services.playlist import PlaylistService
 from musicdl.services.song import SongService
 
 logger = logging.getLogger(__name__)
 
-_ILLEGAL_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
-
-
-def _sanitize(value: object) -> str:
-    """Replace characters that are illegal in file names with ``_``."""
-    return _ILLEGAL_CHARS.sub("_", str(value)).strip()
+# CDN/对象存储常用这些 content-type 提供 mp3/flac,不能只认 audio/*
+_ALLOWED_CONTENT_TYPES = {"application/octet-stream", "binary/octet-stream"}
 
 
 class DownloadService:
@@ -70,18 +66,21 @@ class DownloadService:
     def _values(self, info: SongInfo, *, track_number: str, playlist: str) -> dict[str, str]:
         return {
             "id": str(info.id),
-            "singer": _sanitize(info.singer),
-            "title": _sanitize(info.name),
-            "album": _sanitize(info.album),
+            "singer": sanitize_filename(info.singer),
+            "title": sanitize_filename(info.name),
+            "album": sanitize_filename(info.album),
             "track_number": track_number,
-            "playlist": _sanitize(playlist),
+            "playlist": sanitize_filename(playlist),
         }
 
     def _render(self, values: dict[str, str]) -> Path:
         try:
-            return Path(self.naming_template.format_map(values) + ".mp3")
+            rendered = self.naming_template.format_map(values)
         except KeyError as exc:
             raise ConfigError(f"unknown placeholder {exc} in naming_template") from exc
+        # 逐段净化:API 数据构造的 "." / ".." 段不得逃逸出输出目录
+        parts = sanitize_path_segments(rendered.split("/"))
+        return Path(*parts[:-1], parts[-1] + ".mp3")
 
     def download_song(
         self,
@@ -89,6 +88,7 @@ class DownloadService:
         *,
         level: QualityLevel | str | None = None,
         output: Path | None = None,
+        url_info: SongUrl | None = None,
     ) -> Path:
         """Download a single song.
 
@@ -97,6 +97,9 @@ class DownloadService:
             level: Quality level passed to ``SongService.get_url``.
             output: Explicit target file. When ``None``, the file name is
                 rendered from ``naming_template`` using ``get_info`` data.
+            url_info: Pre-resolved playback URL. When given, ``get_url`` is
+                not called again (callers that already resolved the URL
+                avoid a duplicate request).
 
         Returns:
             The path of the downloaded file.
@@ -111,7 +114,7 @@ class DownloadService:
             target = self.output_dir / self._render(self._values(info, track_number="", playlist=""))
         else:
             target = Path(output)
-        self._download_one(song_id, target, level)
+        self._download_one(song_id, target, level, url_info=url_info)
         return target
 
     def download_playlist(
@@ -185,10 +188,11 @@ class DownloadService:
         song_id: str | int,
         target: Path,
         level: QualityLevel | str | None,
+        url_info: SongUrl | None = None,
     ) -> None:
         part_path = target.with_name(target.name + ".part")
         try:
-            url = self._songs.get_url(song_id, level=level)
+            url = url_info if url_info is not None else self._songs.get_url(song_id, level=level)
             if not url.url:
                 raise DownloadError(
                     f"song {song_id} is not available for playback (no URL returned)",
@@ -201,13 +205,14 @@ class DownloadService:
                 response.raise_for_status()
                 # Check if response is actually audio content
                 content_type = response.headers.get("content-type", "")
-                if not content_type.startswith("audio/"):
+                base_type = content_type.split(";")[0].strip().lower()
+                if not (base_type.startswith("audio/") or base_type in _ALLOWED_CONTENT_TYPES):
                     raise DownloadError(
                         f"song {song_id} returned non-audio content (content-type: {content_type})",
                         song_id=song_id,
                         output_path=target,
                     )
-                total = url.size if url.size > 0 else -1
+                total = url.size if url.size and url.size > 0 else -1
                 downloaded = 0
                 with open(part_path, "wb") as handle:
                     for chunk in response.iter_content(chunk_size=8192):
@@ -227,6 +232,8 @@ class DownloadService:
                         output_path=target,
                     )
         except DownloadError:
+            # 失败路径统一清理,避免空 .part 文件留在磁盘(成功 rename 后本就不存在)
+            part_path.unlink(missing_ok=True)
             raise
         except (requests.RequestException, OSError, MusicDLException) as exc:
             part_path.unlink(missing_ok=True)

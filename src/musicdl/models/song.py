@@ -14,7 +14,8 @@ def _parse_time(value: Any) -> Any:
     """Parse ``%Y/%m/%d %H:%M:%S`` strings leniently, keep raw value otherwise."""
     if isinstance(value, str):
         try:
-            return datetime.strptime(value, "%Y/%m/%d %H:%M:%S")
+            # API 时间戳不带时区信息,按设计保持 naive datetime
+            return datetime.strptime(value, "%Y/%m/%d %H:%M:%S")  # noqa: DTZ007
         except ValueError:
             return value
     return value
@@ -77,28 +78,28 @@ class SongUrl(BaseModel):
     Attributes:
         id: Song ID.
         url: Signed MP3 direct link (time-limited). May be None if unavailable.
-        br: Bitrate in bps.
+        br: Bitrate in bps. May be None if unavailable.
         level: Quality level actually returned. May be None if unavailable.
-        size: File size in bytes.
+        size: File size in bytes. May be None if unavailable.
         md5: Audio file MD5. May be None if unavailable.
         channel_layout: Channel layout, if reported.
         effects: Effects metadata, if reported.
-        cookie: Account info used for streaming.
-        time: Data timestamp (parsed when well-formed).
+        cookie: Account info used for streaming. May be None if unavailable.
+        time: Data timestamp (parsed when well-formed). May be None if unavailable.
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
     id: int
     url: str | None = None
-    br: int
+    br: int | None = None
     level: str | None = None
-    size: int
+    size: int | None = None
     md5: str | None = None
     channel_layout: str | None = Field(default=None, alias="channelLayout")
     effects: Any = None
-    cookie: CookieInfo
-    time: datetime | str
+    cookie: CookieInfo | None = None
+    time: datetime | str | None = None
 
     @field_validator("time", mode="before")
     @classmethod

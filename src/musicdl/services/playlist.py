@@ -6,6 +6,7 @@ from collections.abc import Iterator
 
 from musicdl.api import endpoints
 from musicdl.client import SyncMusicClient
+from musicdl.exceptions import ValidationError
 from musicdl.models import Playlist, PlaylistTrack
 
 
@@ -43,7 +44,10 @@ class PlaylistService:
             endpoints.PLAYLIST_TRACKALL,
             {"id": str(playlist_id), "limit": limit, "offset": offset},
         )
-        return Playlist.model_validate(body["data"])
+        data = body.get("data")
+        if data is None:
+            raise ValidationError(f"response from {endpoints.PLAYLIST_TRACKALL} is missing 'data'")
+        return Playlist.model_validate(data)
 
     def iter_tracks(self, playlist_id: str | int, *, page_size: int | None = None) -> Iterator[PlaylistTrack]:
         """Iterate all tracks of a playlist, fetching pages automatically.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+import uuid
 from pathlib import Path
 
 
@@ -27,7 +28,8 @@ class TempFileManager:
 
     def get_temp_path(self, song_id: int, extension: str = ".mp3") -> Path:
         """Get a temporary file path for a song."""
-        return self._temp_dir / f"song_{song_id}{extension}"
+        # 唯一命名:避免并发下载或重试同一歌曲时互相覆盖同一个临时文件
+        return self._temp_dir / f"song_{song_id}_{uuid.uuid4().hex[:8]}{extension}"
 
     def register_file(self, path: Path) -> None:
         """Register a file for cleanup tracking."""

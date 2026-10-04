@@ -1,0 +1,67 @@
+version: "3"
+
+# 与 Makefile 等价的 Task(Go-Task)构建定义。
+# PyInstaller / flet build 不支持交叉编译, gui:* 任务用 platforms 限定宿主系统;
+# 三平台全量构建见 .github/workflows/build.yml。
+
+vars:
+  PYBIN: "{{if eq OS \"windows\"}}.venv/Scripts/python.exe{{else}}.venv/bin/python{{end}}"
+  FLET: "{{if eq OS \"windows\"}}.venv/Scripts/flet.exe{{else}}.venv/bin/flet{{end}}"
+  # Task 的 OS 取值: windows / darwin / linux; 统一 darwin → macos
+  GUI: "{{if eq OS \"darwin\"}}macos{{else}}{{OS}}{{end}}"
+
+tasks:
+  default:
+    desc: 列出全部任务
+    cmds:
+      - task --list
+
+  install:
+    desc: 安装开发依赖 (可编辑安装 + build 工具)
+    cmds:
+      - "{{.PYBIN}} -m pip install -e \".[dev,cli,gui]\" build"
+
+  test:
+    desc: 运行测试
+    cmds:
+      - "{{.PYBIN}} -m pytest"
+
+  lint:
+    desc: ruff 检查
+    cmds:
+      - "{{.PYBIN}} -m ruff check src/ tests/"
+
+  lib:
+    desc: 构建核心库 wheel (跨平台通用)
+    cmds:
+      - "{{.PYBIN}} -m build --wheel --outdir dist"
+
+  cli:
+    desc: 构建 CLI 单文件可执行 (须在目标系统上运行)
+    cmds:
+      - "{{.PYBIN}} -m PyInstaller musicdl_cli.spec --noconfirm --clean"
+
+  gui:macos:
+    desc: 构建 macOS GUI (.app, 需 Xcode + CocoaPods)
+    platforms: [darwin]
+    cmds:
+      - "{{.FLET}} build macos -o build/gui-macos"
+
+  gui:windows:
+    desc: 构建 Windows GUI
+    platforms: [windows]
+    cmds:
+      - "{{.FLET}} build windows -o build/gui-windows"
+
+  gui:linux:
+    desc: 构建 Linux GUI
+    platforms: [linux]
+    cmds:
+      - "{{.FLET}} build linux -o build/gui-linux"
+
+  all:
+    desc: 构建当前系统支持的全部目标
+    deps:
+      - lib
+      - cli
+      - task: "gui:{{.GUI}}"

@@ -1,17 +1,12 @@
 # musicdl_gui.spec
 # -*- mode: python ; coding: utf-8 -*-
 
-block_cipher = None
-
 
 a = Analysis(
     ['src/musicdl_gui/main.py'],
     pathex=[],
     binaries=[],
-    datas=[
-        ('src/musicdl_gui/tabs', 'tabs'),
-        ('src/musicdl_gui/components', 'components'),
-    ],
+    datas=[],
     hiddenimports=[
         'musicdl',
         'musicdl_gui',
@@ -21,16 +16,13 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
     noarchive=False,
 )
 
 # Filter out problematic Flet binaries (Flet.app with nested frameworks)
 a.binaries = [b for b in a.binaries if 'flet_desktop/app/Flet.app' not in b[0]]
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,

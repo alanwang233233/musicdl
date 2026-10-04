@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import logging.handlers
@@ -109,7 +110,7 @@ class ErrorLog:
                 self._entries = self._entries[-MAX_ENTRIES:]
             callbacks = list(self._callbacks)
 
-        self._logger.log(getattr(logging, entry.level), f"[{entry.source}] {entry.message}")
+        self._logger.log(getattr(logging, entry.level, logging.ERROR), f"[{entry.source}] {entry.message}")
         for callback in callbacks:
             try:
                 callback(entry)
@@ -133,3 +134,19 @@ class ErrorLog:
     def register_callback(self, callback: Callable[[ErrorLogEntry], None]) -> None:
         with self._lock:
             self._callbacks.append(callback)
+
+    def unregister_callback(self, callback: Callable[[ErrorLogEntry], None]) -> None:
+        with self._lock:
+            if callback in self._callbacks:
+                self._callbacks.remove(callback)
+
+
+def install_asyncio_exception_handler(loop: asyncio.AbstractEventLoop) -> None:
+    """Route unhandled asyncio task exceptions into the error log."""
+    def _handler(_loop, context):
+        exc = context.get("exception")
+        if exc is not None:
+            ErrorLog().log_exception(exc, "asyncio", {"message": context.get("message")})
+        else:
+            ErrorLog().log_message("ERROR", "asyncio", str(context.get("message")))
+    loop.set_exception_handler(_handler)

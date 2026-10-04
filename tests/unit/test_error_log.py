@@ -1,5 +1,4 @@
-import pytest
-from musicdl_gui.error_log import ErrorLog, ErrorLogEntry
+from musicdl_gui.error_log import ErrorLog
 
 
 def test_log_exception_creates_entry():

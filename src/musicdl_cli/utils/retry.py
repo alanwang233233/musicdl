@@ -58,7 +58,6 @@ def download_with_retry(
 def _is_retryable(exc: BaseException) -> bool:
     """Check if an exception is retryable (429, 404, or network error).
 
-    Matches the logic in download_playlist_249180720.py:
     - APIError with code 429 or 404
     - APIError with payload.code == 429
     - requests.HTTPError with response.status_code 429 or 404
@@ -71,10 +70,11 @@ def _is_retryable(exc: BaseException) -> bool:
     if isinstance(exc, APIError):
         if exc.code in _RETRYABLE_API_CODES:
             return True
-        if hasattr(exc, "payload") and isinstance(exc.payload, dict):
-            if exc.payload.get("code") == 429:
-                return True
-        return False
+        return (
+            hasattr(exc, "payload")
+            and isinstance(exc.payload, dict)
+            and exc.payload.get("code") == 429
+        )
 
     if isinstance(exc, requests.HTTPError):
         if exc.response is not None:
@@ -96,9 +96,12 @@ def _classify_error(exc: BaseException) -> str:
             return "限流(429)"
         if exc.code == 404:
             return "未找到(404)"
-        if hasattr(exc, "payload") and isinstance(exc.payload, dict):
-            if exc.payload.get("code") == 429:
-                return "限流(429)"
+        if (
+            hasattr(exc, "payload")
+            and isinstance(exc.payload, dict)
+            and exc.payload.get("code") == 429
+        ):
+            return "限流(429)"
 
     if isinstance(exc, requests.HTTPError) and exc.response is not None:
         status = exc.response.status_code
