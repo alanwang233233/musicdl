@@ -109,8 +109,6 @@ jobs:
         run: yes | flet build macos --no-rich-output -o dist/gui-macos
 
       - name: Build GUI (Windows)
-        env:
-          PYTHONIOENCODING: utf-8
         if: matrix.target == 'windows'
         run: [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 ; echo y | flet build windows --no-rich-output -o dist/gui-windows
 
